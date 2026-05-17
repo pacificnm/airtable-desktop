@@ -1,0 +1,72 @@
+{
+  "name": "airtable-desktop",
+  "appName": "Airtable Desktop",
+  "productName": "Airtable Desktop",
+  "description": "Airtable Desktop",
+  "author": "Airtable",
+  "license": "MIT",
+  "homepage": "https://airtable.com",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && npm run build:electron",
+    "build:electron": "tsc -p tsconfig.electron.json && tsc -p tsconfig.electron.preload.json",
+    "electron:dev": "npm run build:electron && concurrently -k \"vite\" \"tsc -p tsconfig.electron.json --watch\" \"tsc -p tsconfig.electron.preload.json --watch\" \"wait-on http://127.0.0.1:5173 dist-electron/main.js && VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "electron:start": "npm run build && electron .",
+    "pack": "npm run build && electron-builder --dir",
+    "pack:linux": "npm run build && electron-builder --linux --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac zip",
+    "dist:mac:dmg": "npm run build && electron-builder --mac dmg zip",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "typecheck": "tsc -b && tsc -p tsconfig.electron.json --noEmit && tsc -p tsconfig.electron.preload.json --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mdxeditor/editor": "^4.0.0",
+    "@tanstack/react-query": "^5.100.10",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@eslint/js": "^10.0.1",
+    "@mui/icons-material": "^9.0.1",
+    "@mui/material": "^9.0.1",
+    "@types/node": "^25.8.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "electron": "^42.1.0",
+    "electron-builder": "^26.8.1",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.3",
+    "vite": "^8.0.12",
+    "vitest": "^3.2.4",
+    "wait-on": "^9.0.10"
+  },
+  "optionalDependencies": {
+    "dmg-license": "^1.0.11"
+  }
+}
