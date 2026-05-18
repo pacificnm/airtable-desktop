@@ -31,9 +31,9 @@ export interface ModuleMenuSectionContribution {
 }
 
 /**
- * Self-contained extension bundle. Modules live under `modules/<id>/` or as
- * installed npm packages (`src/config/installedModules.ts`). Enabled ids are
- * listed in `src/config/enabledModules.ts`.
+ * Self-contained extension bundle. Default modules: `modules/<id>/`.
+ * Custom modules: `module-repos/<id>/`. npm: `installedModules.ts`.
+ * Enabled ids: `src/config/enabledModules.ts`.
  */
 export interface AppModuleDefinition {
   id: string
@@ -60,7 +60,7 @@ export interface AppModuleDefinition {
 
 export interface DiscoveredModule {
   definition: AppModuleDefinition
-  /** Absolute-ish path for UI, e.g. `modules/roles` */
+  /** Path for UI / dev tooling, e.g. `modules/roles` or `module-repos/inventory` */
   rootPath: string
 }
 

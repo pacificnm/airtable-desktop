@@ -5,7 +5,7 @@ export const configModuleTables = [
   {
     key: 'appConfig',
     label: 'App Config',
-    tableId: 'tblNpXaZHbOzQqEEU',
+    tableId: 'tblnkwxCCoTb8y48u',
     tableName: 'App Config',
     primaryField: 'key',
     fields: {

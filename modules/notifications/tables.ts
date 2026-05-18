@@ -4,7 +4,7 @@ export const notificationsModuleTables = [
   {
     key: 'notifications',
     label: 'Notifications',
-    tableId: 'tblwGv6T9dgcDDF9g',
+    tableId: 'tbl55Q9wx6R7w5YRa',
     tableName: 'Notifications',
     primaryField: 'title',
     fields: {

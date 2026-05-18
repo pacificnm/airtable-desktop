@@ -7,6 +7,7 @@ import {
   isElectronDebugEnabled,
   useStrictContentSecurityPolicy,
 } from './debugEnabled.js'
+import { moduleDiscoveryDirs } from './modulePaths.js'
 import { setApplicationMenu, syncElectronMenuContributions } from './menu.js'
 import type { ElectronMenuContribution } from './menuTypes.js'
 
@@ -20,6 +21,28 @@ const debugEnabled = isElectronDebugEnabled()
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+async function resolveModuleTablesPath(
+  projectRoot: string,
+  moduleId: string,
+  moduleRoot?: string,
+): Promise<string> {
+  if (typeof moduleRoot === 'string' && moduleRoot.length > 0) {
+    const filePath = path.join(projectRoot, moduleRoot, 'tables.ts')
+    await fs.access(filePath)
+    return filePath
+  }
+  for (const dir of moduleDiscoveryDirs) {
+    const filePath = path.join(projectRoot, dir, moduleId, 'tables.ts')
+    try {
+      await fs.access(filePath)
+      return filePath
+    } catch {
+      continue
+    }
+  }
+  throw new Error(`No tables.ts found for module "${moduleId}"`)
 }
 
 ipcMain.on('app:sync-electron-menu', (_event, items: unknown) => {
@@ -50,6 +73,7 @@ ipcMain.handle(
     _event,
     moduleId: string,
     tableIdsByKey: Record<string, string>,
+    moduleRoot?: string,
   ): Promise<{ ok: boolean; path?: string; error?: string }> => {
     if (app.isPackaged) {
       return { ok: false, error: 'Patching module tables is only allowed in development.' }
@@ -59,7 +83,7 @@ ipcMain.handle(
     }
     try {
       const projectRoot = path.join(__dirname, '..')
-      const filePath = path.join(projectRoot, 'modules', moduleId, 'tables.ts')
+      const filePath = await resolveModuleTablesPath(projectRoot, moduleId, moduleRoot)
       let content = await fs.readFile(filePath, 'utf8')
       for (const [tableKey, tableId] of Object.entries(tableIdsByKey)) {
         if (typeof tableId !== 'string' || !tableId.startsWith('tbl')) continue
@@ -91,6 +115,7 @@ ipcMain.handle(
     _event,
     moduleId: string,
     placeholdersByKey: Record<string, string>,
+    moduleRoot?: string,
   ): Promise<{ ok: boolean; path?: string; error?: string }> => {
     if (app.isPackaged) {
       return {
@@ -103,7 +128,7 @@ ipcMain.handle(
     }
     try {
       const projectRoot = path.join(__dirname, '..')
-      const filePath = path.join(projectRoot, 'modules', moduleId, 'tables.ts')
+      const filePath = await resolveModuleTablesPath(projectRoot, moduleId, moduleRoot)
       let content = await fs.readFile(filePath, 'utf8')
       for (const [tableKey, placeholder] of Object.entries(placeholdersByKey)) {
         if (typeof placeholder !== 'string' || !placeholder.startsWith('tbl')) continue

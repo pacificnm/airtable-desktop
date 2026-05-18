@@ -11,7 +11,7 @@ import { getElectronModulesBridge } from './electronModulesBridge.ts'
 export interface UninstallModuleOptions {
   /** Remove `module.<id>.*` rows from App Config when connected. Default true. */
   clearAppConfig?: boolean
-  /** Reset `modules/<id>/tables.ts` to placeholder ids (Electron dev only). Default true. */
+  /** Reset module `tables.ts` to placeholder ids (Electron dev only). Default true. */
   resetProjectTableIds?: boolean
 }
 
@@ -99,7 +99,11 @@ export async function uninstallModule(
       const placeholders = Object.fromEntries(
         tableKeys.map((key) => [key, placeholderTableId(key)]),
       )
-      const result = await bridge.resetModuleTableIds(moduleId, placeholders)
+      const result = await bridge.resetModuleTableIds(
+        moduleId,
+        placeholders,
+        mod.rootPath,
+      )
       if (!result.ok) {
         throw new UninstallModuleError(
           result.error ?? 'Failed to reset module tables.ts',

@@ -1,50 +1,74 @@
 import { installedModules } from '../../config/installedModules.ts'
+import {
+  customModuleDir,
+  defaultModuleDir,
+  moduleDiscoveryDirs,
+  type ModuleDiscoveryDir,
+} from '../../config/moduleLocations.ts'
 import type { AppModuleDefinition, DiscoveredModule } from './types.ts'
 
-const moduleIndexGlob = import.meta.glob<{ default: AppModuleDefinition }>(
+const defaultModuleGlob = import.meta.glob<{ default: AppModuleDefinition }>(
   '../../../modules/*/index.ts',
   { eager: true },
 )
 
-function moduleIdFromPath(path: string): string {
-  const match = path.match(/\/modules\/([^/]+)\//)
-  return match?.[1] ?? path
+const customModuleGlob = import.meta.glob<{ default: AppModuleDefinition }>(
+  '../../../module-repos/*/index.ts',
+  { eager: true },
+)
+
+const moduleIndexGlobs: Record<
+  ModuleDiscoveryDir,
+  Record<string, { default: AppModuleDefinition }>
+> = {
+  [defaultModuleDir]: defaultModuleGlob,
+  [customModuleDir]: customModuleGlob,
 }
 
-function discoverBundledModules(): DiscoveredModule[] {
-  return Object.entries(moduleIndexGlob).map(([path, mod]) => {
+function moduleMetaFromPath(
+  path: string,
+  rootDir: ModuleDiscoveryDir,
+): { id: string; rootPath: string } {
+  const match = path.match(new RegExp(`/${rootDir}/([^/]+)/`))
+  const id = match?.[1] ?? path
+  return { id, rootPath: `${rootDir}/${id}` }
+}
+
+function discoverFromDir(rootDir: ModuleDiscoveryDir): DiscoveredModule[] {
+  const glob = moduleIndexGlobs[rootDir]
+  return Object.entries(glob).map(([path, mod]) => {
     const definition = mod.default
-    const id = moduleIdFromPath(path)
+    const { id, rootPath } = moduleMetaFromPath(path, rootDir)
     return {
       definition: { ...definition, id: definition.id || id },
-      rootPath: `modules/${id}`,
+      rootPath,
     } satisfies DiscoveredModule
   })
 }
 
+function discoverBundledModules(): DiscoveredModule[] {
+  return moduleDiscoveryDirs.flatMap((dir) => discoverFromDir(dir))
+}
+
 function mergeDiscoveredModules(
-  bundled: readonly DiscoveredModule[],
-  installed: readonly DiscoveredModule[],
+  ...groups: readonly (readonly DiscoveredModule[])[]
 ): DiscoveredModule[] {
   const byId = new Map<string, DiscoveredModule>()
-  for (const mod of bundled) {
-    byId.set(mod.definition.id, mod)
-  }
-  for (const mod of installed) {
-    byId.set(mod.definition.id, {
-      ...mod,
-      definition: {
-        ...mod.definition,
-        id: mod.definition.id,
-      },
-    })
+  for (const group of groups) {
+    for (const mod of group) {
+      byId.set(mod.definition.id, mod)
+    }
   }
   return [...byId.values()]
 }
 
-/** Every bundled folder and installed package (enabled or not). */
+/** Every default, custom, and npm-installed module (enabled or not). */
 export function discoverModules(): readonly DiscoveredModule[] {
-  return mergeDiscoveredModules(discoverBundledModules(), installedModules).sort(
-    (a, b) => a.definition.name.localeCompare(b.definition.name),
-  )
+  return mergeDiscoveredModules(
+    discoverBundledModules(),
+    installedModules,
+  ).sort((a, b) => a.definition.name.localeCompare(b.definition.name))
 }
+
+/** Re-export for callers that build paths (e.g. docs, tooling). */
+export { customModuleDir, defaultModuleDir, moduleDiscoveryDirs }

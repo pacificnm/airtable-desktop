@@ -1,14 +1,19 @@
-# App modules
+# Default app modules
 
-Optional features live here as **self-contained plugins**. Core discovers every `modules/<id>/index.ts` and loads those listed in `src/config/enabledModules.ts`.
+Built-in modules for the starter app (`config`, `roles`, `users`, `notifications`). Core discovers every `modules/<id>/index.ts`.
 
-## Quick start
+**Your own features** go in [`module-repos/`](../module-repos/) (separate GitHub repos / submodules), not here.
+
+## Quick start (new default module — rare)
 
 1. Copy `config/` or `roles/` to `modules/<your-id>/`.
 2. Edit `index.ts`, `tables.ts`, `blueprints.ts`, and add screens/hooks.
-3. Add `<your-id>` to `src/config/enabledModules.ts`.
-4. **Developer → Modules → Enable** (connected to your base).
-5. Read **Documentation → Modules** in the app for the full authoring guide.
+3. Enable via **Developer → Modules** or `src/config/enabledModules.ts`.
+4. Read **Documentation → Modules** in the app for the full authoring guide.
+
+## Custom features
+
+See [module-repos/README.md](../module-repos/README.md) and [docs/module-repos.md](../docs/module-repos.md).
 
 ## Bundled modules
 
@@ -23,4 +28,5 @@ Optional features live here as **self-contained plugins**. Core discovers every 
 
 - In-app: **Documentation → Modules**
 - Repo: [docs/modules.md](../docs/modules.md)
-- **Separate repos:** [docs/external-modules.md](../docs/external-modules.md)
+- **GitHub repos in this folder:** [docs/module-repos.md](../docs/module-repos.md) (git submodules)
+- **npm packages:** [docs/external-modules.md](../docs/external-modules.md)

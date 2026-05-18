@@ -60,7 +60,7 @@ export function disableModule(moduleId: string): readonly string[] {
 export function formatEnabledModulesFile(ids: readonly string[]): string {
   const quoted = ids.map((id) => `'${id.replace(/'/g, "\\'")}'`).join(', ')
   return `/**
- * Module ids to load at startup (must match a folder under \`modules/<id>/\`).
+ * Module ids to load at startup (modules/<id>/ or module-repos/<id>/).
  * Updated via Developer → Modules or edit manually.
  */
 export const enabledModuleIds = [${quoted}] as const satisfies readonly string[]

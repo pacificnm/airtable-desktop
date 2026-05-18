@@ -130,7 +130,11 @@ export async function provisionModuleTables(
 
   const bridge = getElectronModulesBridge()
   if (bridge) {
-    const patchResult = await bridge.patchModuleTableIds(moduleId, idsToPersist)
+    const patchResult = await bridge.patchModuleTableIds(
+      moduleId,
+      idsToPersist,
+      discovered.rootPath,
+    )
     if (!patchResult.ok) {
       console.warn('[modules] Could not patch tables.ts:', patchResult.error)
     }

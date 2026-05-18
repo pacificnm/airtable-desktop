@@ -15,10 +15,13 @@ export interface ElectronModulesBridge {
   patchModuleTableIds: (
     moduleId: string,
     tableIdsByKey: Record<string, string>,
+    /** e.g. `module-repos/inventory` — from discovered module `rootPath` */
+    moduleRoot?: string,
   ) => Promise<PatchModuleTableIdsResult>
   resetModuleTableIds: (
     moduleId: string,
     placeholdersByKey: Record<string, string>,
+    moduleRoot?: string,
   ) => Promise<PatchModuleTableIdsResult>
 }
 

@@ -1,6 +1,8 @@
-# External modules (separate repos)
+# External modules (npm packages)
 
-Use a **separate git repo per feature module**, install it into this app as an npm package, and register it in `src/config/installedModules.ts`. Bundled modules under `modules/` remain supported for templates and optional built-ins you want in the starter repo.
+> **Using GitHub?** Prefer [module-repos.md](./module-repos.md) (git submodules under `module-repos/<id>/`). Default app modules stay in `modules/`.
+
+Use this guide when a module is published as an **npm package** (registry or `file:../…`) rather than checked out under `modules/`. Register packages in `src/config/installedModules.ts`. Bundled folders under `modules/` remain supported for templates and built-ins.
 
 ## Architecture
 

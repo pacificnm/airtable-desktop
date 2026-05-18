@@ -27,20 +27,27 @@ contextBridge.exposeInMainWorld('electronModules', {
       'modules:writeEnabledModuleIds',
       fileContents,
     ) as Promise<{ ok: boolean; path?: string; error?: string }>,
-  patchModuleTableIds: (moduleId: string, tableIdsByKey: Record<string, string>) =>
+  patchModuleTableIds: (
+    moduleId: string,
+    tableIdsByKey: Record<string, string>,
+    moduleRoot?: string,
+  ) =>
     ipcRenderer.invoke(
       'modules:patchModuleTableIds',
       moduleId,
       tableIdsByKey,
+      moduleRoot,
     ) as Promise<{ ok: boolean; path?: string; error?: string }>,
   resetModuleTableIds: (
     moduleId: string,
     placeholdersByKey: Record<string, string>,
+    moduleRoot?: string,
   ) =>
     ipcRenderer.invoke(
       'modules:resetModuleTableIds',
       moduleId,
       placeholdersByKey,
+      moduleRoot,
     ) as Promise<{ ok: boolean; path?: string; error?: string }>,
 })
 
