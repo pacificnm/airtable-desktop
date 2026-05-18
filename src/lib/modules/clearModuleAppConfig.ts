@@ -1,4 +1,4 @@
-import type { AirtableRestClient } from '../airtable/restClient.ts'
+import type { AirtableClient } from '../airtable/airtableClient.ts'
 import { getTableConfig } from '../../config/tables.ts'
 import { parseModuleTableConfigKey } from './moduleTableConfig.ts'
 
@@ -15,7 +15,7 @@ function configKeyBelongsToModule(configKey: string, moduleId: string): boolean 
  * Does not delete Airtable data tables themselves.
  */
 export async function clearModuleAppConfigEntries(
-  client: AirtableRestClient,
+  client: AirtableClient,
   moduleId: string,
 ): Promise<number> {
   const configTable = getTableConfig('appConfig')

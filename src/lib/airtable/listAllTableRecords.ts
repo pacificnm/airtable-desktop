@@ -1,5 +1,5 @@
 import type { AirtableTableConfig } from '../../config/tables.ts'
-import type { AirtableRestClient } from './restClient.ts'
+import type { AirtableClient } from './airtableClient.ts'
 import {
   normalizeRecord,
   type NormalizedRecord,
@@ -24,7 +24,7 @@ export type ListAllTableRecordsResult<
 export async function listAllTableRecords<
   TFields extends Record<string, unknown> = Record<string, unknown>,
 >(
-  client: AirtableRestClient,
+  client: AirtableClient,
   config: AirtableTableConfig,
   query?: ListRecordsQuery,
   options?: Omit<ListAllRecordsOptions, keyof ListRecordsQuery>,

@@ -33,6 +33,11 @@ export interface ElectronModulesBridge {
     moduleRoot: string,
     fileContents: string,
   ) => Promise<WriteModuleTablesFileResult>
+  writeModuleFile: (
+    moduleRoot: string,
+    relativePath: string,
+    fileContents: string,
+  ) => Promise<WriteModuleTablesFileResult>
 }
 
 export function getElectronModulesBridge(): ElectronModulesBridge | null {

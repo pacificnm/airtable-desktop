@@ -34,6 +34,8 @@ import {
   fieldTypeLabel,
   summarizeFieldOptions,
 } from '../../lib/airtable/formatFieldMeta.ts'
+import { parseSelectChoices } from '../../lib/airtable/fieldOptions.ts'
+import { airtableColorToHex } from '../../lib/airtable/airtableChoiceColor.ts'
 import {
   inferFieldZod,
   type AirtableRequiredHint,
@@ -145,6 +147,7 @@ function FieldRow({
   primaryFieldId: string
 }) {
   const optionsSummary = summarizeFieldOptions(field)
+  const selectChoices = parseSelectChoices(field)
   const hasOptionsJson =
     field.options && Object.keys(field.options).length > 0
   const zod = inferFieldZod(field, { primaryFieldId })
@@ -172,8 +175,33 @@ function FieldRow({
         </Typography>
         <code style={{ fontSize: '0.65rem' }}>{field.type}</code>
       </TableCell>
-      <TableCell sx={{ maxWidth: 160 }}>
+      <TableCell sx={{ maxWidth: 200 }}>
         <Typography variant="caption">{optionsSummary}</Typography>
+        {selectChoices.length > 0 && (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+            {selectChoices.map((choice) => {
+              const hex = airtableColorToHex(choice.color)
+              return (
+                <Chip
+                  key={choice.id}
+                  size="small"
+                  label={choice.name}
+                  sx={
+                    hex
+                      ? {
+                          bgcolor: hex,
+                          color: '#1a1a1a',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                        }
+                      : undefined
+                  }
+                  variant={hex ? 'filled' : 'outlined'}
+                />
+              )
+            })}
+          </Box>
+        )}
         {hasOptionsJson && (
           <Box
             component="pre"
@@ -348,11 +376,13 @@ export function TableDetailFlyout({
               defaultExpanded
             >
               <Alert severity="info" sx={{ mb: 2 }}>
-                For <strong>Zod</strong>, we infer types and constraints from Airtable (select
-                choices, rating max, link shape, etc.). <strong>Required</strong> is only known for
-                the primary field; form-required flags are not in the API — add{' '}
+                The Meta API returns full <code>options</code> (select colors, link targets, rating
+                max, etc.) — expand a field row to see raw JSON. <strong>Sync schema from Airtable</strong>{' '}
+                on a module writes <code>tables.meta.ts</code> with that metadata; <code>tables.ts</code>{' '}
+                stays a lightweight name map. For <strong>Zod</strong>, we infer from this schema.{' '}
+                <strong>Required</strong> is only known for the primary field — add{' '}
                 <code>validation: {'{ fieldKey: { required: true } }'}</code> in{' '}
-                <code>tables.ts</code> or edit the generated schema.
+                <code>tables.ts</code> when needed.
               </Alert>
               <TableContainer sx={{ maxHeight: 360 }}>
                 <Table size="small" stickyHeader>

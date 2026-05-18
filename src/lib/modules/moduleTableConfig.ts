@@ -1,4 +1,4 @@
-import type { AirtableRestClient } from '../airtable/restClient.ts'
+import type { AirtableClient } from '../airtable/airtableClient.ts'
 import { getTableConfig } from '../../config/tables.ts'
 import { mergeModuleTableIdCache } from './moduleTableIdCache.ts'
 
@@ -23,7 +23,7 @@ function escapeAirtableFormulaString(value: string): string {
  * Read `module.<id>.table.<key>` rows from App Config into a tableKey → tableId map.
  */
 export async function fetchModuleTableIdsFromAppConfig(
-  client: AirtableRestClient,
+  client: AirtableClient,
 ): Promise<Record<string, string>> {
   const configTable = getTableConfig('appConfig')
   if (!configTable) return {}
@@ -58,7 +58,7 @@ export async function fetchModuleTableIdsFromAppConfig(
 
 /** Upsert module table ids into App Config after provisioning. */
 export async function syncModuleTableIdsToAppConfig(
-  client: AirtableRestClient,
+  client: AirtableClient,
   moduleId: string,
   idsByTableKey: Record<string, string>,
 ): Promise<void> {

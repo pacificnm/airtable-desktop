@@ -124,8 +124,11 @@ export default function DeveloperModules() {
         .map((t) => `${t.tableKey} (${t.fieldCount} fields)`)
         .join(', ')
       if (result.fileWritten) {
+        const metaNote = result.metaFileWritten
+          ? ` and ${result.metaFilePath ?? 'tables.meta.ts'}`
+          : ''
         toast.success(
-          `Imported schema from Airtable: ${summary}. Updated ${result.filePath ?? 'tables.ts'}.`,
+          `Imported schema from Airtable: ${summary}. Updated ${result.filePath ?? 'tables.ts'}${metaNote}.`,
         )
       } else {
         toast.success(

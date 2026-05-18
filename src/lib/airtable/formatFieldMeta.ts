@@ -1,4 +1,5 @@
 import type { MetaFieldSchema } from './metaTypes.ts'
+import { formatSelectChoicesSummary } from './fieldOptions.ts'
 
 /** Short human-readable summary of type-specific `options` from the Meta API. */
 export function summarizeFieldOptions(field: MetaFieldSchema): string {
@@ -9,13 +10,8 @@ export function summarizeFieldOptions(field: MetaFieldSchema): string {
 
   switch (type) {
     case 'singleSelect':
-    case 'multipleSelects': {
-      const choices = o.choices as { name?: string }[] | undefined
-      if (!choices?.length) return '—'
-      const names = choices.map((c) => c.name).filter(Boolean) as string[]
-      if (names.length <= 4) return names.join(', ')
-      return `${names.slice(0, 4).join(', ')} (+${names.length - 4} more)`
-    }
+    case 'multipleSelects':
+      return formatSelectChoicesSummary(field)
     case 'multipleRecordLinks':
       return [
         o.linkedTableId && `→ table ${String(o.linkedTableId)}`,

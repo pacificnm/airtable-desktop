@@ -1,4 +1,4 @@
-import type { AirtableRestClient } from '../../../src/lib/airtable/restClient.ts'
+import type { AirtableClient } from '../../../src/lib/airtable/airtableClient.ts'
 import type { AirtableTableConfig } from '../../../src/config/tables.ts'
 import type { WhoamiResponse } from '../../../src/lib/airtable/types.ts'
 import { escapeAirtableFormulaString } from './airtableFormula.ts'
@@ -8,7 +8,7 @@ import { mapConfigToAirtableFields } from '../../../src/lib/airtable/mapRecordFi
  * Upsert an App Users row linked to the current Airtable OAuth user id.
  */
 export async function syncOAuthUserProfile(
-  client: AirtableRestClient,
+  client: AirtableClient,
   tableConfig: AirtableTableConfig,
   whoami: WhoamiResponse,
 ): Promise<{ recordId: string; created: boolean }> {

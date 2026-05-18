@@ -1,7 +1,7 @@
 import { createContext } from 'react'
 import type { ConnectionProfile } from '../lib/airtable/connectionProfiles.ts'
 import type { OAuthCallbackResult } from '../lib/airtable/oauthCallbackDedupe.ts'
-import type { AirtableRestClient } from '../lib/airtable/restClient.ts'
+import type { AirtableClient } from '../lib/airtable/airtableClient.ts'
 
 export type AirtableAuthMode = 'pat' | 'oauth' | 'none'
 
@@ -11,7 +11,7 @@ export interface AirtableContextValue {
   /** Resolved base id: prop → stored → env */
   baseId: string | undefined
   /** REST client when `baseId` and auth are available */
-  client: AirtableRestClient | null
+  client: AirtableClient | null
   authMode: AirtableAuthMode
   /** True when `baseId` is set and a token (PAT or OAuth) is available */
   isReady: boolean

@@ -1,4 +1,4 @@
-import type { AirtableRestClient } from '../airtable/restClient.ts'
+import type { AirtableClient } from '../airtable/airtableClient.ts'
 import { clearModuleAppConfigEntries } from './clearModuleAppConfig.ts'
 import { getEnabledModulesDependingOn } from './moduleDependencies.ts'
 import { disableModule } from './modulePreferences.ts'
@@ -54,7 +54,7 @@ export function getUninstallBlockers(moduleId: string): string[] {
  */
 export async function uninstallModule(
   moduleId: string,
-  client: AirtableRestClient | null,
+  client: AirtableClient | null,
   options?: UninstallModuleOptions,
 ): Promise<UninstallModuleResult> {
   const clearAppConfig = options?.clearAppConfig ?? true

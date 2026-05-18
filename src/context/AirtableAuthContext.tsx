@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { AirtableRestClient } from '../lib/airtable/restClient.ts'
+import { createCachingAirtableClient } from '../lib/airtable/cachingRestClient.ts'
+import type { AirtableClient } from '../lib/airtable/airtableClient.ts'
+import { clearAirtableDataCache } from '../lib/airtable/cache/airtableDataCache.ts'
 import { normalizeBaseId } from '../lib/airtable/baseId.ts'
 import { readAirtableEnv } from '../lib/airtable/env.ts'
 import {
@@ -143,9 +145,9 @@ export function AirtableProvider({
     return sessionAfter?.accessToken ?? null
   }, [commitStore, env, patToken])
 
-  const client = useMemo(() => {
+  const client = useMemo((): AirtableClient | null => {
     if (!baseId) return null
-    return new AirtableRestClient({ baseId, getAccessToken })
+    return createCachingAirtableClient(baseId, getAccessToken)
   }, [baseId, getAccessToken])
 
   const authMode: AirtableAuthMode = useMemo(() => {
@@ -193,6 +195,7 @@ export function AirtableProvider({
       })
       setOAuthSession(readOAuthFromStorage())
       void queryClient.invalidateQueries()
+      clearAirtableDataCache()
     },
     [commitStore],
   )
@@ -206,6 +209,7 @@ export function AirtableProvider({
       })
       setOAuthSession(null)
       void queryClient.invalidateQueries()
+      clearAirtableDataCache()
     },
     [commitStore],
   )
@@ -229,6 +233,7 @@ export function AirtableProvider({
       })
       setOAuthSession(readOAuthFromStorage())
       void queryClient.invalidateQueries()
+      clearAirtableDataCache()
     },
     [commitStore],
   )

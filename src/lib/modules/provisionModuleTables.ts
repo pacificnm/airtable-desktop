@@ -1,4 +1,4 @@
-import type { AirtableRestClient } from '../airtable/restClient.ts'
+import type { AirtableClient } from '../airtable/airtableClient.ts'
 import type { MetaTableSchema } from '../airtable/metaTypes.ts'
 import { buildCreateTableFields, sortBlueprintsForProvisioning } from './buildCreateTableFields.ts'
 import { buildLinkedTableIdIndex } from './linkedTableIndex.ts'
@@ -31,7 +31,7 @@ function findTableByName(
 }
 
 async function seedTable(
-  client: AirtableRestClient,
+  client: AirtableClient,
   tableId: string,
   seeds: readonly { fields: Record<string, unknown> }[],
 ): Promise<void> {
@@ -47,7 +47,7 @@ async function seedTable(
  * Provisions dependency modules first and stores table ids in App Config.
  */
 export async function provisionModuleTables(
-  client: AirtableRestClient,
+  client: AirtableClient,
   moduleId: string,
   chain: Set<string> = new Set(),
 ): Promise<ProvisionModuleResult> {

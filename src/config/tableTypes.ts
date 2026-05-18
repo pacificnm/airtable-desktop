@@ -31,6 +31,20 @@ export interface TableColumnConfig {
   hidden?: boolean
 }
 
+/**
+ * Snapshot of one Airtable field from the Meta API (written to `tables.meta.ts` on schema sync).
+ * Includes `options` (select colors, link targets, rating max, etc.).
+ */
+export interface MetaFieldSnapshot {
+  id: string
+  /** camelCase key used in app config / `tables.ts` `fields` map */
+  configKey: string
+  name: string
+  type: string
+  description?: string
+  options?: Record<string, unknown>
+}
+
 export interface AirtableTableConfig {
   key: string
   label: string

@@ -154,6 +154,42 @@ ipcMain.handle(
   },
 )
 
+async function writeModuleDevFile(
+  moduleRoot: string,
+  relativePath: string,
+  fileContents: string,
+): Promise<{ ok: boolean; path?: string; error?: string }> {
+  if (app.isPackaged) {
+    return {
+      ok: false,
+      error: 'Writing module files is only allowed in development.',
+    }
+  }
+  if (
+    typeof moduleRoot !== 'string' ||
+    typeof relativePath !== 'string' ||
+    typeof fileContents !== 'string'
+  ) {
+    return { ok: false, error: 'Invalid write payload' }
+  }
+  if (fileContents.trim().length === 0) {
+    return { ok: false, error: 'Invalid file contents' }
+  }
+  if (relativePath.includes('..') || path.isAbsolute(relativePath)) {
+    return { ok: false, error: 'Invalid file path' }
+  }
+  try {
+    const projectRoot = path.join(__dirname, '..')
+    const filePath = path.join(projectRoot, moduleRoot, relativePath)
+    await fs.mkdir(path.dirname(filePath), { recursive: true })
+    await fs.writeFile(filePath, fileContents, 'utf8')
+    return { ok: true, path: filePath }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Write failed'
+    return { ok: false, error: message }
+  }
+}
+
 ipcMain.handle(
   'modules:writeModuleTablesFile',
   async (
@@ -161,27 +197,19 @@ ipcMain.handle(
     moduleRoot: string,
     fileContents: string,
   ): Promise<{ ok: boolean; path?: string; error?: string }> => {
-    if (app.isPackaged) {
-      return {
-        ok: false,
-        error: 'Writing module tables.ts is only allowed in development.',
-      }
-    }
-    if (typeof moduleRoot !== 'string' || typeof fileContents !== 'string') {
-      return { ok: false, error: 'Invalid write payload' }
-    }
-    if (fileContents.trim().length === 0) {
-      return { ok: false, error: 'Invalid file contents' }
-    }
-    try {
-      const projectRoot = path.join(__dirname, '..')
-      const filePath = path.join(projectRoot, moduleRoot, 'tables.ts')
-      await fs.writeFile(filePath, fileContents, 'utf8')
-      return { ok: true, path: filePath }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Write failed'
-      return { ok: false, error: message }
-    }
+    return writeModuleDevFile(moduleRoot, 'tables.ts', fileContents)
+  },
+)
+
+ipcMain.handle(
+  'modules:writeModuleFile',
+  async (
+    _event,
+    moduleRoot: string,
+    relativePath: string,
+    fileContents: string,
+  ): Promise<{ ok: boolean; path?: string; error?: string }> => {
+    return writeModuleDevFile(moduleRoot, relativePath, fileContents)
   },
 )
 

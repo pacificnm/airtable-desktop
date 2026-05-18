@@ -1,10 +1,13 @@
-import type { AirtableRestClient } from '../airtable/restClient.ts'
+import type { AirtableClient } from '../airtable/airtableClient.ts'
 import { getElectronModulesBridge } from './electronModulesBridge.ts'
 import {
   electronHandlerRestartMessage,
   isMissingElectronHandlerError,
 } from './electronIpcErrors.ts'
-import { generateModuleTablesFileContent } from './generateModuleTablesFile.ts'
+import {
+  generateModuleFieldsMetaFileContent,
+  generateModuleTablesFileContent,
+} from './generateModuleTablesFile.ts'
 import { findDiscoveredModule, isModuleEnabled } from './registry.ts'
 import { syncModuleTableIdsToAppConfig } from './moduleTableConfig.ts'
 import { setProvisionedTableIds } from './provisionedTableIds.ts'
@@ -14,6 +17,8 @@ export interface SyncModuleSchemaResult {
   tables: readonly { tableKey: string; tableId: string; fieldCount: number }[]
   fileWritten: boolean
   filePath?: string
+  metaFileWritten: boolean
+  metaFilePath?: string
 }
 
 /**
@@ -21,7 +26,7 @@ export interface SyncModuleSchemaResult {
  * Does not create tables or alter columns — meta API read + local file write only.
  */
 export async function syncModuleTablesFromSchema(
-  client: AirtableRestClient,
+  client: AirtableClient,
   moduleId: string,
 ): Promise<SyncModuleSchemaResult> {
   const discovered = findDiscoveredModule(moduleId)
@@ -36,6 +41,11 @@ export async function syncModuleTablesFromSchema(
 
   const schema = await client.getBaseSchema()
   const fileContents = generateModuleTablesFileContent(
+    moduleId,
+    tableConfigs,
+    schema.tables,
+  )
+  const metaFileContents = generateModuleFieldsMetaFileContent(
     moduleId,
     tableConfigs,
     schema.tables,
@@ -78,18 +88,40 @@ export async function syncModuleTablesFromSchema(
 
   let fileWritten = false
   let filePath: string | undefined
+  let metaFileWritten = false
+  let metaFilePath: string | undefined
   const bridge = getElectronModulesBridge()
-  if (bridge?.writeModuleTablesFile) {
+  const writeDevFile = bridge?.writeModuleFile ?? bridge?.writeModuleTablesFile
+    ? async (relativePath: string, contents: string) => {
+        if (bridge.writeModuleFile) {
+          return bridge.writeModuleFile(discovered.rootPath, relativePath, contents)
+        }
+        if (relativePath !== 'tables.ts') {
+          return {
+            ok: false,
+            error:
+              'Restart Electron dev (npm run electron:dev) to enable writing tables.meta.ts.',
+          }
+        }
+        return bridge.writeModuleTablesFile!(discovered.rootPath, contents)
+      }
+    : null
+
+  if (writeDevFile) {
     try {
-      const writeResult = await bridge.writeModuleTablesFile(
-        discovered.rootPath,
-        fileContents,
-      )
+      const writeResult = await writeDevFile('tables.ts', fileContents)
       if (!writeResult.ok) {
         throw new Error(writeResult.error ?? 'Failed to write tables.ts')
       }
       fileWritten = true
       filePath = writeResult.path
+
+      const metaWrite = await writeDevFile('tables.meta.ts', metaFileContents)
+      if (!metaWrite.ok) {
+        throw new Error(metaWrite.error ?? 'Failed to write tables.meta.ts')
+      }
+      metaFileWritten = true
+      metaFilePath = metaWrite.path
     } catch (err) {
       if (isMissingElectronHandlerError(err)) {
         throw new Error(electronHandlerRestartMessage())
@@ -98,7 +130,14 @@ export async function syncModuleTablesFromSchema(
     }
   }
 
-  return { moduleId, tables, fileWritten, filePath }
+  return {
+    moduleId,
+    tables,
+    fileWritten,
+    filePath,
+    metaFileWritten,
+    metaFilePath,
+  }
 }
 
 export function moduleCanSyncSchemaFromAirtable(moduleId: string): boolean {

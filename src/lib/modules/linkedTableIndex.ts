@@ -1,4 +1,4 @@
-import type { AirtableRestClient } from '../airtable/restClient.ts'
+import type { AirtableClient } from '../airtable/airtableClient.ts'
 import type { MetaTableSchema } from '../airtable/metaTypes.ts'
 import { isPlaceholderTableId } from './tableBlueprints.ts'
 import {
@@ -60,7 +60,7 @@ function indexFromModuleDefinitions(): Record<string, string> {
  * Priority: App Config (`module.*.table.*`) → cache → module tables.ts → base schema.
  */
 export async function buildLinkedTableIdIndex(
-  client: AirtableRestClient,
+  client: AirtableClient,
   schemaTables: readonly MetaTableSchema[],
 ): Promise<Record<string, string>> {
   const index = indexFromModuleDefinitions()

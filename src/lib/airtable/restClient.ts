@@ -1,3 +1,4 @@
+import type { AirtableClient } from './airtableClient.ts'
 import type {
   AirtableRecord,
   ListAllRecordsOptions,
@@ -16,11 +17,15 @@ export interface AirtableRestClientOptions {
   getAccessToken: () => string | null | Promise<string | null>
 }
 
-export class AirtableRestClient {
+export class AirtableRestClient implements AirtableClient {
   private readonly options: AirtableRestClientOptions
 
   constructor(options: AirtableRestClientOptions) {
     this.options = options
+  }
+
+  get baseId(): string {
+    return this.options.baseId
   }
 
   private async authHeader(): Promise<HeadersInit> {
@@ -89,6 +94,16 @@ export class AirtableRestClient {
     const url = `${this.tablePath(table)}${qs ? `?${qs}` : ''}`
     const res = await this.fetchApi(url, { headers: await this.authHeader() })
     return this.parseResponse<ListRecordsResponse<TFields>>(res)
+  }
+
+  /** Single record by id. @see https://airtable.com/developers/web/api/get-record */
+  async getRecord<TFields = Record<string, unknown>>(
+    tableId: string,
+    recordId: string,
+  ): Promise<AirtableRecord<TFields>> {
+    const url = `${this.tablePath(tableId)}/${encodeURIComponent(recordId)}`
+    const res = await this.fetchApi(url, { headers: await this.authHeader() })
+    return this.parseResponse<AirtableRecord<TFields>>(res)
   }
 
   /**

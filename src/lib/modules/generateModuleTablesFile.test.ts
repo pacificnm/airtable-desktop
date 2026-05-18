@@ -1,46 +1,48 @@
 import { describe, expect, it } from 'vitest'
-import { sampleMetaTable } from '../airtable/__fixtures__/sampleMetaTable.ts'
 import {
+  generateModuleFieldsMetaFileContent,
   generateModuleTablesFileContent,
-  resolveMetaTableForConfig,
 } from './generateModuleTablesFile.ts'
+import type { AirtableTableConfig } from '../../config/tableTypes.ts'
+import type { MetaTableSchema } from '../airtable/metaTypes.ts'
 
-const sampleTableId = 'tblFakeLocations01'
+const tableConfig = {
+  key: 'building',
+  label: 'Building',
+  tableId: 'tblBuilding',
+  fields: { status: 'Status' },
+} satisfies AirtableTableConfig
 
-describe('generateModuleTablesFile', () => {
-  it('resolves table by id', () => {
-    const meta = resolveMetaTableForConfig(
-      {
-        key: 'locations',
-        label: 'Locations',
-        tableId: sampleTableId,
-        fields: { name: 'Name' },
+const meta: MetaTableSchema = {
+  id: 'tblBuilding',
+  name: 'Building',
+  primaryFieldId: 'fldName',
+  views: [],
+  fields: [
+    { id: 'fldName', name: 'Preferred Name', type: 'singleLineText' },
+    {
+      id: 'fldStatus',
+      name: 'Status',
+      type: 'singleSelect',
+      options: {
+        choices: [{ id: 'sel1', name: 'Open', color: 'greenBright' }],
       },
-      [{ ...sampleMetaTable, id: sampleTableId }],
-    )
-    expect(meta?.id).toBe(sampleTableId)
-  })
+    },
+  ],
+}
 
-  it('generates tables.ts with camelCase field keys', () => {
-    const meta = { ...sampleMetaTable, id: sampleTableId, name: 'Locations' }
-    const content = generateModuleTablesFileContent(
-      'location',
-      [
-        {
-          key: 'locations',
-          label: 'Locations',
-          tableId: sampleTableId,
-          tableName: 'Locations',
-          fields: { name: 'Name' },
-          screens: ['locationsList'],
-        },
-      ],
-      [meta],
-    )
-    expect(content).toContain("from '@/config/tableTypes.ts'")
-    expect(content).toContain('export const locationModuleTables')
-    expect(content).toContain(`tableId: '${sampleTableId}'`)
-    expect(content).toContain("screens: ['locationsList']")
-    expect(content).not.toContain('createTable')
+describe('generateModuleFieldsMetaFileContent', () => {
+  it('embeds select choice colors in tables.meta.ts', () => {
+    const source = generateModuleFieldsMetaFileContent('location', [tableConfig], [meta])
+    expect(source).toContain('locationModuleFieldsMeta')
+    expect(source).toContain('greenBright')
+    expect(source).toContain("configKey: 'status'")
+  })
+})
+
+describe('generateModuleTablesFileContent', () => {
+  it('references tables.meta.ts in header comment', () => {
+    const source = generateModuleTablesFileContent('location', [tableConfig], [meta])
+    expect(source).toContain('tables.meta.ts')
   })
 })

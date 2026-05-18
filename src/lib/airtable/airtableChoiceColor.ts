@@ -1,0 +1,48 @@
+/** Map Airtable select/checkbox color tokens to a display hex (approximate UI colors). */
+const AIRTABLE_COLOR_HEX: Record<string, string> = {
+  blueLight2: '#d1e2ff',
+  cyanLight2: '#c4ecff',
+  tealLight2: '#c0f0e8',
+  greenLight2: '#d1f4d1',
+  yellowLight2: '#ffeab6',
+  orangeLight2: '#ffe0cc',
+  redLight2: '#ffd4cc',
+  pinkLight2: '#ffd4e8',
+  purpleLight2: '#e8d4ff',
+  grayLight2: '#e8e8e8',
+  blueLight1: '#9cc7ff',
+  cyanLight1: '#77d4ff',
+  tealLight1: '#66e0cc',
+  greenLight1: '#66d666',
+  yellowLight1: '#ffcc66',
+  orangeLight1: '#ffb380',
+  redLight1: '#ff9980',
+  pinkLight1: '#ff99cc',
+  purpleLight1: '#cc99ff',
+  grayLight1: '#cccccc',
+  blueBright: '#3380ff',
+  cyanBright: '#00aaff',
+  tealBright: '#00c9a7',
+  greenBright: '#20c933',
+  yellowBright: '#ffba00',
+  orangeBright: '#ff8a00',
+  redBright: '#ff3b30',
+  pinkBright: '#ff4da6',
+  purpleBright: '#a855f7',
+  grayBright: '#888888',
+  blueDark1: '#1d4ed8',
+  cyanDark1: '#0369a1',
+  tealDark1: '#0f766e',
+  greenDark1: '#15803d',
+  yellowDark1: '#a16207',
+  orangeDark1: '#c2410c',
+  redDark1: '#b91c1c',
+  pinkDark1: '#be185d',
+  purpleDark1: '#7e22ce',
+  grayDark1: '#4b5563',
+}
+
+export function airtableColorToHex(color: string | undefined): string | undefined {
+  if (!color?.trim()) return undefined
+  return AIRTABLE_COLOR_HEX[color.trim()]
+}

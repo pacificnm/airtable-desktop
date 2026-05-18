@@ -1,4 +1,4 @@
-import type { AirtableTableConfig } from '../../config/tableTypes.ts'
+import type { AirtableTableConfig, MetaFieldSnapshot } from '../../config/tableTypes.ts'
 import type { MetaTableSchema } from '../airtable/metaTypes.ts'
 import {
   buildCompleteFieldMap,
@@ -112,6 +112,89 @@ export function moduleTablesExportName(moduleId: string): string {
   return `${moduleId}ModuleTables`
 }
 
+export function moduleFieldsMetaExportName(moduleId: string): string {
+  return `${moduleId}ModuleFieldsMeta`
+}
+
+function formatOptionsLiteral(options: Record<string, unknown> | undefined): string {
+  if (!options || Object.keys(options).length === 0) return 'undefined'
+  const json = JSON.stringify(options, null, 2)
+  return json
+    .split('\n')
+    .map((line, index) => (index === 0 ? line : `        ${line}`))
+    .join('\n')
+}
+
+function buildFieldSnapshots(meta: MetaTableSchema): MetaFieldSnapshot[] {
+  const fields = buildCompleteFieldMap(meta.fields)
+  const configKeyByAirtableName = new Map(
+    Object.entries(fields).map(([configKey, airtableName]) => [airtableName, configKey]),
+  )
+
+  return [...meta.fields]
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'accent' }))
+    .map((field) => {
+      const snapshot: MetaFieldSnapshot = {
+        id: field.id,
+        configKey:
+          configKeyByAirtableName.get(field.name) ?? fieldNameToConfigKey(field.name),
+        name: field.name,
+        type: field.type,
+      }
+      if (field.description?.trim()) snapshot.description = field.description.trim()
+      if (field.options && Object.keys(field.options).length > 0) {
+        snapshot.options = field.options
+      }
+      return snapshot
+    })
+}
+
+function formatFieldSnapshotBlock(snapshot: MetaFieldSnapshot): string {
+  const lines = [
+    `    {`,
+    `      id: ${quote(snapshot.id)},`,
+    `      configKey: ${quote(snapshot.configKey)},`,
+    `      name: ${quote(snapshot.name)},`,
+    `      type: ${quote(snapshot.type)},`,
+  ]
+  if (snapshot.description) {
+    lines.push(`      description: ${quote(snapshot.description)},`)
+  }
+  lines.push(`      options: ${formatOptionsLiteral(snapshot.options)},`)
+  lines.push(`    },`)
+  return lines.join('\n')
+}
+
+/** Full `tables.meta.ts` — field types and options (select colors, links, etc.) from Meta API. */
+export function generateModuleFieldsMetaFileContent(
+  moduleId: string,
+  tableConfigs: readonly AirtableTableConfig[],
+  schemaTables: readonly MetaTableSchema[],
+): string {
+  const tableBlocks: string[] = []
+
+  for (const tableConfig of tableConfigs) {
+    const meta = resolveMetaTableForConfig(tableConfig, schemaTables)
+    if (!meta) continue
+    const snapshots = buildFieldSnapshots(meta)
+    const fieldBlocks = snapshots.map(formatFieldSnapshotBlock).join('\n')
+    tableBlocks.push(`  ${quote(tableConfig.key)}: [\n${fieldBlocks}\n  ],`)
+  }
+
+  const exportName = moduleFieldsMetaExportName(moduleId)
+  return `import type { MetaFieldSnapshot } from '@/config/tableTypes.ts'
+
+/**
+ * Full field metadata from Airtable Meta API (types, select colors, link targets, etc.).
+ * Regenerate via Developer → Modules → Sync schema from Airtable.
+ * @see https://airtable.com/developers/web/api/field-model
+ */
+export const ${exportName}: Record<string, readonly MetaFieldSnapshot[]> = {
+${tableBlocks.join('\n')}
+}
+`
+}
+
 /** Full `tables.ts` source for a module (safe import from Airtable meta API). */
 export function generateModuleTablesFileContent(
   moduleId: string,
@@ -136,6 +219,7 @@ export function generateModuleTablesFileContent(
 /**
  * Field map synced from Airtable (read-only meta API). Does not create or modify base schema.
  * Regenerate via Developer → Modules → Sync schema from Airtable.
+ * For select colors and full field options, see \`tables.meta.ts\` in this folder.
  */
 export const ${exportName} = [
 ${blocks.join(',\n')},
