@@ -31,8 +31,9 @@ export interface ModuleMenuSectionContribution {
 }
 
 /**
- * Self-contained extension bundle. Modules live under `modules/<id>/` and are
- * enabled in `src/config/enabledModules.ts`.
+ * Self-contained extension bundle. Modules live under `modules/<id>/` or as
+ * installed npm packages (`src/config/installedModules.ts`). Enabled ids are
+ * listed in `src/config/enabledModules.ts`.
  */
 export interface AppModuleDefinition {
   id: string

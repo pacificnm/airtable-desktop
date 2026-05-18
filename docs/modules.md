@@ -2,6 +2,8 @@
 
 The starter separates **core** (`src/`) from **modules** (`modules/`). You can pull core updates without touching your feature folders, as long as you keep modules on stable extension APIs.
 
+**Separate git repos:** install feature modules as npm packages and register them in `src/config/installedModules.ts`. See [external-modules.md](./external-modules.md).
+
 ## When to use a module
 
 | Approach | Use for |

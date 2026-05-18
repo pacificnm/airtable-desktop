@@ -23,3 +23,4 @@ Optional features live here as **self-contained plugins**. Core discovers every 
 
 - In-app: **Documentation → Modules**
 - Repo: [docs/modules.md](../docs/modules.md)
+- **Separate repos:** [docs/external-modules.md](../docs/external-modules.md)
