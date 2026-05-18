@@ -49,6 +49,12 @@ contextBridge.exposeInMainWorld('electronModules', {
       placeholdersByKey,
       moduleRoot,
     ) as Promise<{ ok: boolean; path?: string; error?: string }>,
+  writeModuleTablesFile: (moduleRoot: string, fileContents: string) =>
+    ipcRenderer.invoke(
+      'modules:writeModuleTablesFile',
+      moduleRoot,
+      fileContents,
+    ) as Promise<{ ok: boolean; path?: string; error?: string }>,
 })
 
 contextBridge.exposeInMainWorld('electronApp', {

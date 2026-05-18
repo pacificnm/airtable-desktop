@@ -16,7 +16,15 @@ The default app (`config`, `roles`, `users`, `notifications`) stays in [`modules
 git submodule add https://github.com/you/atd-module-inventory.git module-repos/inventory
 ```
 
-Each repo’s root should match the `modules/roles/` layout (`index.ts`, `tables.ts`, `screens/`, …). Imports use the same paths as bundled modules, e.g. `../../src/lib/modules/types.ts`.
+Each repo’s root should match the `modules/roles/` layout (`index.ts`, `tables.ts`, `screens/`, …).
+
+Import from the app shell with the `@/` alias (maps to `src/`):
+
+```ts
+import type { AppModuleDefinition } from '@/lib/modules/types.ts'
+import { FormStack } from '@/components/ui/index.ts'
+import { useAirtableListQuery } from '@/hooks/useAirtableTableQuery.ts'
+```
 
 Then enable the module id in **Developer → Modules** (or `src/config/enabledModules.ts`).
 

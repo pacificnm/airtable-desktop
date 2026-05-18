@@ -1,0 +1,107 @@
+import type { AirtableRestClient } from '../airtable/restClient.ts'
+import { getElectronModulesBridge } from './electronModulesBridge.ts'
+import {
+  electronHandlerRestartMessage,
+  isMissingElectronHandlerError,
+} from './electronIpcErrors.ts'
+import { generateModuleTablesFileContent } from './generateModuleTablesFile.ts'
+import { findDiscoveredModule, isModuleEnabled } from './registry.ts'
+import { syncModuleTableIdsToAppConfig } from './moduleTableConfig.ts'
+import { setProvisionedTableIds } from './provisionedTableIds.ts'
+
+export interface SyncModuleSchemaResult {
+  moduleId: string
+  tables: readonly { tableKey: string; tableId: string; fieldCount: number }[]
+  fileWritten: boolean
+  filePath?: string
+}
+
+/**
+ * Read base schema from Airtable and rewrite the module's tables.ts (dev only).
+ * Does not create tables or alter columns — meta API read + local file write only.
+ */
+export async function syncModuleTablesFromSchema(
+  client: AirtableRestClient,
+  moduleId: string,
+): Promise<SyncModuleSchemaResult> {
+  const discovered = findDiscoveredModule(moduleId)
+  if (!discovered) {
+    throw new Error(`Unknown module: ${moduleId}`)
+  }
+
+  const tableConfigs = discovered.definition.tables
+  if (!tableConfigs?.length) {
+    throw new Error(`Module "${moduleId}" has no tables to sync.`)
+  }
+
+  const schema = await client.getBaseSchema()
+  const fileContents = generateModuleTablesFileContent(
+    moduleId,
+    tableConfigs,
+    schema.tables,
+  )
+
+  const idsToPersist: Record<string, string> = {}
+  const tables: {
+    tableKey: string
+    tableId: string
+    fieldCount: number
+  }[] = []
+  for (const tableConfig of tableConfigs) {
+    const meta = schema.tables.find(
+      (t) =>
+        t.id === tableConfig.tableId ||
+        t.name.localeCompare(
+          tableConfig.tableName ?? tableConfig.label,
+          undefined,
+          { sensitivity: 'accent' },
+        ) === 0,
+    )
+    if (!meta) continue
+    idsToPersist[tableConfig.key] = meta.id
+    tables.push({
+      tableKey: tableConfig.key,
+      tableId: meta.id,
+      fieldCount: meta.fields.length,
+    })
+  }
+
+  setProvisionedTableIds(moduleId, idsToPersist)
+
+  if (isModuleEnabled('config') && Object.keys(idsToPersist).length > 0) {
+    try {
+      await syncModuleTableIdsToAppConfig(client, moduleId, idsToPersist)
+    } catch (err) {
+      console.warn('[modules] Could not sync table ids to App Config:', err)
+    }
+  }
+
+  let fileWritten = false
+  let filePath: string | undefined
+  const bridge = getElectronModulesBridge()
+  if (bridge?.writeModuleTablesFile) {
+    try {
+      const writeResult = await bridge.writeModuleTablesFile(
+        discovered.rootPath,
+        fileContents,
+      )
+      if (!writeResult.ok) {
+        throw new Error(writeResult.error ?? 'Failed to write tables.ts')
+      }
+      fileWritten = true
+      filePath = writeResult.path
+    } catch (err) {
+      if (isMissingElectronHandlerError(err)) {
+        throw new Error(electronHandlerRestartMessage())
+      }
+      throw err
+    }
+  }
+
+  return { moduleId, tables, fileWritten, filePath }
+}
+
+export function moduleCanSyncSchemaFromAirtable(moduleId: string): boolean {
+  const mod = findDiscoveredModule(moduleId)
+  return Boolean(mod?.definition.tables?.length)
+}

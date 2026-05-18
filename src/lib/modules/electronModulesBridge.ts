@@ -10,6 +10,12 @@ export interface PatchModuleTableIdsResult {
   error?: string
 }
 
+export interface WriteModuleTablesFileResult {
+  ok: boolean
+  path?: string
+  error?: string
+}
+
 export interface ElectronModulesBridge {
   writeEnabledModuleIds: (fileContents: string) => Promise<WriteEnabledModulesResult>
   patchModuleTableIds: (
@@ -23,6 +29,10 @@ export interface ElectronModulesBridge {
     placeholdersByKey: Record<string, string>,
     moduleRoot?: string,
   ) => Promise<PatchModuleTableIdsResult>
+  writeModuleTablesFile: (
+    moduleRoot: string,
+    fileContents: string,
+  ) => Promise<WriteModuleTablesFileResult>
 }
 
 export function getElectronModulesBridge(): ElectronModulesBridge | null {

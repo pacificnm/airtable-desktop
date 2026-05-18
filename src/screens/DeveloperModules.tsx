@@ -35,6 +35,8 @@ import {
   moduleDependencyProvisionBlockers,
 } from '../lib/modules/moduleDependencies.ts'
 import { moduleNeedsTableProvisioning } from '../lib/modules/moduleProvisioningState.ts'
+import { moduleCanSyncSchemaFromAirtable } from '../lib/modules/syncModuleTablesFromSchema.ts'
+import { syncModuleTablesFromSchema } from '../lib/modules/syncModuleTablesFromSchema.ts'
 import { provisionModuleTables } from '../lib/modules/provisionModuleTables.ts'
 import {
   getUninstallBlockers,
@@ -55,6 +57,10 @@ export default function DeveloperModules() {
     () => getElectronModulesBridge()?.resetModuleTableIds != null,
     [],
   )
+  const canWriteModuleTables = useMemo(
+    () => getElectronModulesBridge()?.writeModuleTablesFile != null,
+    [],
+  )
 
   const provisionTables = async (moduleId: string): Promise<boolean> => {
     if (!client || !isReady) {
@@ -63,6 +69,13 @@ export default function DeveloperModules() {
     }
     if (!moduleNeedsTableProvisioning(moduleId)) {
       return true
+    }
+    const mod = getDiscoveredModules().find((m) => m.definition.id === moduleId)
+    if (!mod?.definition.tableBlueprints?.length) {
+      toast.warning(
+        'This module has no provisioning blueprints. Use “Sync schema from Airtable” instead — it will not create or modify tables.',
+      )
+      return false
     }
     try {
       const result = await provisionModuleTables(client, moduleId)
@@ -96,19 +109,75 @@ export default function DeveloperModules() {
     reloadAppForModuleChange()
   }
 
+  const syncSchemaFromAirtable = async (moduleId: string): Promise<boolean> => {
+    if (!client || !isReady) {
+      toast.warning('Connect your base first (base id + OAuth or PAT).')
+      return false
+    }
+    if (!moduleCanSyncSchemaFromAirtable(moduleId)) {
+      toast.warning('This module has no tables to sync.')
+      return false
+    }
+    try {
+      const result = await syncModuleTablesFromSchema(client, moduleId)
+      const summary = result.tables
+        .map((t) => `${t.tableKey} (${t.fieldCount} fields)`)
+        .join(', ')
+      if (result.fileWritten) {
+        toast.success(
+          `Imported schema from Airtable: ${summary}. Updated ${result.filePath ?? 'tables.ts'}.`,
+        )
+      } else {
+        toast.success(
+          `Imported schema from Airtable: ${summary}. Reload to apply (run in Electron dev to write tables.ts).`,
+        )
+      }
+      return true
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to sync schema')
+      return false
+    }
+  }
+
   const handleEnable = async (moduleId: string) => {
     setBusyId(moduleId)
     try {
       const ids = enableModule(moduleId)
-      const tablesOk = await provisionTables(moduleId)
-      if (!tablesOk) {
-        setBusyId(null)
-        return
+      const mod = getDiscoveredModules().find((m) => m.definition.id === moduleId)
+      const hasBlueprints = Boolean(mod?.definition.tableBlueprints?.length)
+      const hasTables = Boolean(mod?.definition.tables?.length)
+
+      if (moduleNeedsTableProvisioning(moduleId)) {
+        const tablesOk = await provisionTables(moduleId)
+        if (!tablesOk) {
+          setBusyId(null)
+          return
+        }
+      } else if (hasTables && !hasBlueprints) {
+        const synced = await syncSchemaFromAirtable(moduleId)
+        if (!synced) {
+          setBusyId(null)
+          return
+        }
       }
+
       await applyAndReload(ids, canSyncFile)
     } catch (err) {
       setBusyId(null)
       toast.error(err instanceof Error ? err.message : 'Failed to enable module')
+    }
+  }
+
+  const handleSyncSchema = async (moduleId: string) => {
+    setBusyId(`${moduleId}:schema`)
+    try {
+      const ok = await syncSchemaFromAirtable(moduleId)
+      if (ok) {
+        toast.info('Reloading to apply tables.ts…')
+        reloadAppForModuleChange()
+      }
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -195,12 +264,12 @@ export default function DeveloperModules() {
         {getScreenTitle('devModules')}
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Enable or disable modules with one click. When connected, the app creates
-        module tables in your Airtable base automatically (requires{' '}
-        <code>schema.bases:write</code>). The app reloads to register routes and menu
-        items. Use <strong>Uninstall</strong> to clear provisioning state and reinstall
-        cleanly. In Electron dev, changes also update <code>enabledModules.ts</code> and{' '}
-        <code>modules/*/tables.ts</code>.
+        Enable or disable modules with one click. Modules with blueprints can create new
+        tables (requires <code>schema.bases:write</code>). Modules that use existing tables
+        only import field names via <strong>Sync schema from Airtable</strong> — read-only
+        meta API, no schema changes in your base. The app reloads to register routes and
+        menu items. In Electron dev, changes update <code>enabledModules.ts</code> and{' '}
+        <code>tables.ts</code> under each module folder.
       </Typography>
 
       <Alert severity="info" sx={{ mb: 2 }}>
@@ -268,10 +337,15 @@ export default function DeveloperModules() {
         <Stack spacing={2}>
           {modules.map(({ definition, rootPath }) => {
             const enabled = isModuleEnabled(definition.id)
-            const busy = busyId === definition.id || busyId === `${definition.id}:tables`
-            const needsTables =
-              Boolean(definition.tableBlueprints?.length) &&
-              moduleNeedsTableProvisioning(definition.id)
+            const busy =
+              busyId === definition.id ||
+              busyId === `${definition.id}:tables` ||
+              busyId === `${definition.id}:schema`
+            const hasBlueprints = Boolean(definition.tableBlueprints?.length)
+            const hasTables = Boolean(definition.tables?.length)
+            const canSyncSchema =
+              hasTables && moduleCanSyncSchemaFromAirtable(definition.id)
+            const needsTables = hasBlueprints && moduleNeedsTableProvisioning(definition.id)
             const deps = getModuleDependencies(definition.id)
             const depBlockers = moduleDependencyProvisionBlockers(definition.id)
             const uninstallBlockers = getUninstallBlockers(definition.id)
@@ -314,6 +388,18 @@ export default function DeveloperModules() {
                       Create tables
                     </Button>
                   ) : null}
+                  {enabled && canSyncSchema ? (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      disabled={
+                        busy || busyId !== null || !isReady || !canWriteModuleTables
+                      }
+                      onClick={() => void handleSyncSchema(definition.id)}
+                    >
+                      Sync schema from Airtable
+                    </Button>
+                  ) : null}
                   {canUninstall ? (
                     <Button
                       size="small"
@@ -352,18 +438,25 @@ export default function DeveloperModules() {
                     {definition.description}
                   </Typography>
                 ) : null}
-                {definition.tableBlueprints?.length ? (
+                {hasBlueprints ? (
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                     {needsTables
                       ? 'Tables not provisioned yet — enable while connected or use Create tables.'
                       : 'Airtable tables linked.'}{' '}
-                    Schema: <code>{rootPath}/blueprints.ts</code>
+                    Provisioning: <code>{rootPath}/blueprints.ts</code>
                     {depBlockers.length > 0 ? (
-                      <>
-                        {' '}
-                        Blocked until: {depBlockers.join('; ')}.
-                      </>
+                      <> Blocked until: {depBlockers.join('; ')}.</>
                     ) : null}
+                  </Typography>
+                ) : null}
+                {hasTables && !hasBlueprints ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Uses existing Airtable tables only —{' '}
+                    <strong>Sync schema from Airtable</strong> reads field names via the meta API
+                    and updates <code>{rootPath}/tables.ts</code> (no schema changes in Airtable).
+                    {canWriteModuleTables
+                      ? null
+                      : ' Run in Electron dev to write tables.ts to disk.'}
                   </Typography>
                 ) : null}
                 {uninstallBlockers.length > 0 ? (

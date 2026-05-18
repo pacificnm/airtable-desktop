@@ -18,7 +18,7 @@
     "dev": "vite",
     "build": "vite build && npm run build:electron",
     "build:electron": "tsc -p tsconfig.electron.json && tsc -p tsconfig.electron.preload.json",
-    "electron:dev": "npm run build:electron && concurrently -k \"vite\" \"tsc -p tsconfig.electron.json --watch\" \"tsc -p tsconfig.electron.preload.json --watch\" \"wait-on http://localhost:5173 dist-electron/main.js && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "electron:dev": "npm run build:electron && concurrently -k \"vite\" \"tsc -p tsconfig.electron.json --watch\" \"tsc -p tsconfig.electron.preload.json --watch\" \"wait-on http://localhost:5173 dist-electron/main.js && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 node scripts/electron-runner.mjs\"",
     "electron:start": "npm run build && electron .",
     "pack": "npm run build && electron-builder --dir",
     "pack:linux": "npm run build && electron-builder --linux --dir",

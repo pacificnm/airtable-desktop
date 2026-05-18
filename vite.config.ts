@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -22,6 +22,11 @@ export default defineConfig({
     __APP_DISPLAY_NAME__: JSON.stringify(displayAppName),
   },
   plugins: [react(), productionCspPlugin()],
+  resolve: {
+    alias: {
+      '@': resolve(rootDir, 'src'),
+    },
+  },
   server: {
     port: 5173,
     strictPort: true,

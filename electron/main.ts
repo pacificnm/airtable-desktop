@@ -155,6 +155,37 @@ ipcMain.handle(
 )
 
 ipcMain.handle(
+  'modules:writeModuleTablesFile',
+  async (
+    _event,
+    moduleRoot: string,
+    fileContents: string,
+  ): Promise<{ ok: boolean; path?: string; error?: string }> => {
+    if (app.isPackaged) {
+      return {
+        ok: false,
+        error: 'Writing module tables.ts is only allowed in development.',
+      }
+    }
+    if (typeof moduleRoot !== 'string' || typeof fileContents !== 'string') {
+      return { ok: false, error: 'Invalid write payload' }
+    }
+    if (fileContents.trim().length === 0) {
+      return { ok: false, error: 'Invalid file contents' }
+    }
+    try {
+      const projectRoot = path.join(__dirname, '..')
+      const filePath = path.join(projectRoot, moduleRoot, 'tables.ts')
+      await fs.writeFile(filePath, fileContents, 'utf8')
+      return { ok: true, path: filePath }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Write failed'
+      return { ok: false, error: message }
+    }
+  },
+)
+
+ipcMain.handle(
   'modules:writeEnabledModuleIds',
   async (
     _event,
