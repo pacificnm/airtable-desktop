@@ -2,6 +2,9 @@ import type { ReactNode } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Chip from '@mui/material/Chip'
+import IconButton from '@mui/material/IconButton'
+import Tooltip from '@mui/material/Tooltip'
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import type { SxProps, Theme } from '@mui/material/styles'
 
 const MONO =
@@ -26,6 +29,10 @@ export interface PageHeaderProps {
   titleAddon?: ReactNode
   /** Full-width row below the title row (e.g. breadcrumbs). */
   bottom?: ReactNode
+  /** When set, renders a back arrow button before the icon. */
+  onBack?: () => void
+  /** Override the accessible label for the back button. */
+  backLabel?: string
   sx?: SxProps<Theme>
 }
 
@@ -37,6 +44,8 @@ export function PageHeader({
   count,
   titleAddon,
   bottom,
+  onBack,
+  backLabel = 'Back',
   sx,
 }: PageHeaderProps) {
   return (
@@ -54,6 +63,18 @@ export function PageHeader({
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {onBack ? (
+            <Tooltip title={backLabel}>
+              <IconButton
+                aria-label={backLabel}
+                onClick={onBack}
+                size="small"
+                sx={{ mr: 0.5 }}
+              >
+                <ArrowBackIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          ) : null}
           {icon}
           <Typography
             sx={{

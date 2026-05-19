@@ -20,6 +20,8 @@ export interface RecordListPageProps {
   /** When set with `onViewModeChange`, shows grid/card toggle beside header actions. */
   viewMode?: RecordViewMode
   onViewModeChange?: (mode: RecordViewMode) => void
+  /** Optional footer below the records (typically a `TablePager`). */
+  footer?: ReactNode
 }
 
 /** Standard list page shell: header, optional banner, loading/error, records slot. */
@@ -33,6 +35,7 @@ export function RecordListPage({
   children,
   viewMode,
   onViewModeChange,
+  footer,
 }: RecordListPageProps) {
   const showViewToggle = viewMode != null && onViewModeChange != null
 
@@ -61,6 +64,7 @@ export function RecordListPage({
           />
         ) : null}
         {!isLoading && !isError ? children : null}
+        {!isError && footer ? footer : null}
       </PageContents>
     </PageContainer>
   )

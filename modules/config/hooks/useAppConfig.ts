@@ -23,9 +23,10 @@ export function useAppConfig() {
 /** Active config keys → parsed values. */
 export function useConfigMap(options?: { activeOnly?: boolean }) {
   const { entries, ...rest } = useAppConfig()
+  const activeOnly = options?.activeOnly
   const map = useMemo(
-    () => configMapFromEntries(entries, options),
-    [entries, options?.activeOnly],
+    () => configMapFromEntries(entries, { activeOnly }),
+    [entries, activeOnly],
   )
   return { map, entries, ...rest }
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useAirtable } from '../../../src/hooks/useAirtable.ts'
 import { escapeAirtableFormulaString } from '../lib/airtableFormula.ts'
 import { verifyPassword } from '../lib/passwordCrypto.ts'
@@ -18,14 +18,17 @@ export function useUsersModuleAuth(authProvider: UsersAuthProvider) {
   const [session, setSession] = useState<UsersModuleSession | null>(() =>
     authProvider === 'custom_table' ? readUsersModuleSession() : null,
   )
+  const [lastAuthProvider, setLastAuthProvider] = useState(authProvider)
 
-  useEffect(() => {
-    if (authProvider === 'custom_table') {
-      setSession(readUsersModuleSession())
-    } else {
-      setSession(null)
-    }
-  }, [authProvider])
+  // When the configured auth provider switches, re-sync the session — but do
+  // it inline (the "store previous value" pattern) so we don't trigger a
+  // cascading render via useEffect+setState.
+  if (lastAuthProvider !== authProvider) {
+    setLastAuthProvider(authProvider)
+    setSession(
+      authProvider === 'custom_table' ? readUsersModuleSession() : null,
+    )
+  }
 
   const signIn = useCallback(
     async (login: string, password: string) => {

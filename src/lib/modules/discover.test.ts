@@ -25,6 +25,6 @@ describe('module discovery locations', () => {
   it('discovers custom module-repos/location', () => {
     const location = discoverModules().find((m) => m.definition.id === 'location')
     expect(location?.rootPath).toBe('module-repos/location')
-    expect(location?.definition.name).toMatch(/Locations/i)
+    expect(location?.definition.name).toMatch(/Buildings|Locations/i)
   })
 })

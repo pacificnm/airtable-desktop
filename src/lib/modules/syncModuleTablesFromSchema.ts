@@ -124,7 +124,7 @@ export async function syncModuleTablesFromSchema(
       metaFilePath = metaWrite.path
     } catch (err) {
       if (isMissingElectronHandlerError(err)) {
-        throw new Error(electronHandlerRestartMessage())
+        throw new Error(electronHandlerRestartMessage(), { cause: err })
       }
       throw err
     }

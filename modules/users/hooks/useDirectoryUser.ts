@@ -16,7 +16,7 @@ export function useDirectoryUser() {
   const { session, isCustomSignedIn } = useUsersModuleAuth(authProvider)
   const { users } = useAppUsers()
 
-  const [syncedRecordId, setSyncedRecordId] = useState<string | null>(null)
+  const [createdRecordId, setCreatedRecordId] = useState<string | null>(null)
 
   const profileFromTable = useMemo(() => {
     if (authProvider === 'custom_table' && session) {
@@ -28,13 +28,21 @@ export function useDirectoryUser() {
     return undefined
   }, [authProvider, session, users, oauthShellUser.userId])
 
+  const existingRecordId =
+    authProvider === 'airtable_oauth' && oauthShellUser.userId
+      ? (users.find((u) => u.airtableUserId === oauthShellUser.userId)?.id ?? null)
+      : null
+
+  const syncedRecordId = existingRecordId ?? createdRecordId
+
   useEffect(() => {
     if (
       authProvider !== 'airtable_oauth' ||
       !extendOAuthProfiles ||
       !client ||
       !isReady ||
-      oauthShellUser.userId == null
+      oauthShellUser.userId == null ||
+      existingRecordId != null
     ) {
       return
     }
@@ -42,21 +50,13 @@ export function useDirectoryUser() {
     const tableConfig = getAppUsersTableConfig()
     if (!tableConfig) return
 
-    const existing = users.find(
-      (u) => u.airtableUserId === oauthShellUser.userId,
-    )
-    if (existing) {
-      setSyncedRecordId(existing.id)
-      return
-    }
-
     let cancelled = false
     void (async () => {
       try {
         const who = await client.whoami()
         if (cancelled) return
         const result = await syncOAuthUserProfile(client, tableConfig, who)
-        if (!cancelled) setSyncedRecordId(result.recordId)
+        if (!cancelled) setCreatedRecordId(result.recordId)
       } catch {
         /* optional sync */
       }
@@ -71,7 +71,7 @@ export function useDirectoryUser() {
     client,
     isReady,
     oauthShellUser.userId,
-    users,
+    existingRecordId,
   ])
 
   const displayName =

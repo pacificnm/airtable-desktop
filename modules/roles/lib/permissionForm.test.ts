@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import type { AirtableTableConfig } from '../../../src/config/tableTypes.ts'
 import {
   rolePermissionFormValuesToAirtableFields,
   validateRolePermissionFormValues,
 } from './permissionForm.ts'
-import { getRolePermissionsTableConfig } from '../validation/roles.ts'
+import { rolesModuleTables } from '../tables.ts'
+import { ROLE_PERMISSIONS_TABLE_KEY } from '../validation/roles.ts'
 
-const config = getRolePermissionsTableConfig()!
+const config = rolesModuleTables.find(
+  (t) => t.key === ROLE_PERMISSIONS_TABLE_KEY,
+) as AirtableTableConfig
 
 describe('rolePermissionFormValuesToAirtableFields', () => {
   it('maps role link as record ids', () => {

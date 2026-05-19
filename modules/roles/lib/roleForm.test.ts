@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import type { AirtableTableConfig } from '../../../src/config/tableTypes.ts'
 import { roleFormValuesToAirtableFields, validateRoleFormValues } from './roleForm.ts'
-import { getRolesTableConfig } from '../validation/roles.ts'
+import { rolesModuleTables } from '../tables.ts'
+import { ROLES_TABLE_KEY } from '../validation/roles.ts'
 
-const config = getRolesTableConfig()!
+const config = rolesModuleTables.find(
+  (t) => t.key === ROLES_TABLE_KEY,
+) as AirtableTableConfig
 
 describe('roleFormValuesToAirtableFields', () => {
   it('maps to Airtable field names', () => {

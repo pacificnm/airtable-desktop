@@ -17,9 +17,10 @@ import { ToastProvider } from './context/ToastContext.tsx'
 import type { AppView } from './components/main/appView.ts'
 import { isDebugEnabled } from './lib/env/isDebugEnabled.ts'
 import { OAuthRedirectHandler } from './components/airtable/OAuthRedirectHandler.tsx'
-import { usePersistedAppView } from './lib/navigation/appViewPersistence.ts'
 import { isModuleEnabled } from './lib/modules/registry.ts'
 import { NotificationModuleBridge } from '../modules/notifications/components/NotificationModuleBridge.tsx'
+import { NavigationProvider } from './components/main/NavigationProvider.tsx'
+import { useNavigation } from './hooks/useNavigation.ts'
 
 const debugUiEnabled = isDebugEnabled()
 
@@ -106,18 +107,29 @@ function DebugMenuBridge({ onNavigate }: { onNavigate: (view: AppView) => void }
   )
 }
 
-export default function App() {
-  const [view, setView] = usePersistedAppView()
+function AppRoot() {
+  const { view, reset } = useNavigation()
+  const handleNavigate = (next: AppView) => reset(next)
 
+  return (
+    <>
+      <OAuthRedirectHandler />
+      <ElectronMenuSync />
+      {isModuleEnabled('notifications') ? <NotificationModuleBridge /> : null}
+      <MaybeDebugShell onNavigate={handleNavigate}>
+        <AppShell view={view} onViewChange={handleNavigate} />
+      </MaybeDebugShell>
+    </>
+  )
+}
+
+export default function App() {
   return (
     <AppThemeProvider>
       <ToastProvider>
-        <OAuthRedirectHandler />
-        <ElectronMenuSync />
-        {isModuleEnabled('notifications') ? <NotificationModuleBridge /> : null}
-        <MaybeDebugShell onNavigate={setView}>
-          <AppShell view={view} onViewChange={setView} />
-        </MaybeDebugShell>
+        <NavigationProvider>
+          <AppRoot />
+        </NavigationProvider>
       </ToastProvider>
     </AppThemeProvider>
   )

@@ -23,4 +23,6 @@ export type {
 export { RecordListPage } from './screen/RecordListPage.tsx'
 export { RecordViewToggle } from './view/RecordViewToggle.tsx'
 export { DataTable, DataTableText } from './table/DataTable.tsx'
+export { TablePager } from './table/TablePager.tsx'
+export type { TablePagerProps } from './table/TablePager.tsx'
 export type { DataTableColumn, DataTableRowActions } from './table/types.ts'
