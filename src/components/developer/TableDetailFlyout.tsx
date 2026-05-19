@@ -20,6 +20,7 @@ import TableRow from '@mui/material/TableRow'
 import Chip from '@mui/material/Chip'
 import CloseIcon from '@mui/icons-material/Close'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import { flyoutPaperSx } from '../ui/drawer/flyoutPaperSx.ts'
 import type { MetaFieldSchema, MetaTableSchema } from '../../lib/airtable/metaTypes.ts'
 import { generateTableConfigSnippet } from '../../lib/airtable/generateTableConfigSnippet.ts'
 import { generateZodSchemaSnippet } from '../../lib/airtable/generateZodSchemaSnippet.ts'
@@ -299,7 +300,11 @@ export function TableDetailFlyout({
       onClose={onClose}
       slotProps={{
         paper: {
-          sx: { width: { xs: '100%', sm: 640 }, maxWidth: '100%' },
+          sx: (theme) => ({
+            ...flyoutPaperSx(theme),
+            width: { xs: '100%', sm: 640 },
+            maxWidth: '100%',
+          }),
         },
       }}
     >

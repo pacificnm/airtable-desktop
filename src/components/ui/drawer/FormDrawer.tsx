@@ -8,6 +8,7 @@ import Alert from '@mui/material/Alert'
 import CloseIcon from '@mui/icons-material/Close'
 import { Action } from '../../button/Action.tsx'
 import { TextButton } from '../button/TextButton.tsx'
+import { flyoutPaperSx } from './flyoutPaperSx.ts'
 
 export interface FormDrawerProps {
   open: boolean
@@ -40,7 +41,12 @@ export function FormDrawer({
   width = 420,
 }: FormDrawerProps) {
   return (
-    <Drawer anchor="right" open={open} onClose={onClose}>
+    <Drawer
+      anchor="right"
+      open={open}
+      onClose={onClose}
+      slotProps={{ paper: { sx: flyoutPaperSx } }}
+    >
       <Box
         sx={{
           width: { xs: '100vw', sm: width },
