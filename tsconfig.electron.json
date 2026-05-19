@@ -17,6 +17,5 @@
     "sourceMap": true,
     "types": ["node"]
   },
-  "include": ["electron/**/*.ts"],
-  "exclude": ["electron/preload.ts"]
+  "include": ["electron/**/*.ts"]
 }

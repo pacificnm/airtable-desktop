@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 const mainJs = path.join(root, 'dist-electron', 'main.js')
-const preloadJs = path.join(root, 'dist-electron', 'preload.js')
+const preloadJs = path.join(root, 'dist-electron', 'preload.cjs')
 
 let electron = null
 let restarting = false

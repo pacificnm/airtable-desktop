@@ -270,7 +270,7 @@ function setupProductionContentSecurityPolicy(): void {
 }
 
 function preloadPath(): string {
-  return path.join(__dirname, 'preload.js')
+  return path.join(__dirname, 'preload.cjs')
 }
 
 function productionIndexPath(): string {
