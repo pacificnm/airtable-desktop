@@ -1,7 +1,11 @@
 import type { ComponentType } from 'react'
 import type { AppView } from '../../components/main/appView.ts'
 import type { HeaderSlotContribution } from '../header/headerSlotTypes.ts'
-import type { MenuIconId, MenuPlacement } from '../menu/menuTypes.ts'
+import type {
+  MenuIconId,
+  MenuNavScope,
+  MenuPlacement,
+} from '../menu/menuTypes.ts'
 import type { AirtableTableConfig } from '../../config/tables.ts'
 import type { ModuleTableBlueprint } from './tableBlueprints.ts'
 
@@ -13,14 +17,31 @@ export interface ModuleScreenContribution {
   importScreen: () => Promise<ScreenModule>
 }
 
+/** Declares drawer groups for this module (`menuGroupId` on items). */
+export interface ModuleMenuNavGroup {
+  id: string
+  label: string
+  scope?: MenuNavScope
+  order?: number
+}
+
+export interface ModuleMenuNavConfig {
+  groups: readonly ModuleMenuNavGroup[]
+}
+
 export interface ModuleMenuItemContribution {
   id: string
   label: string
   icon: MenuIconId
   viewId: AppView
   order?: number
-  /** Where this item appears (app drawer, native Electron menu, or both). */
-  placements: readonly MenuPlacement[]
+  /**
+   * App-drawer section from this module's `menuNav.groups`.
+   * Use with `placements` for Electron-only entries, or alone for drawer-only items.
+   */
+  menuGroupId?: string
+  /** Where this item appears. Omit drawer placement when using `menuGroupId`. */
+  placements?: readonly MenuPlacement[]
 }
 
 /** @deprecated Prefer `menuItems` with explicit `placements` (defaults to app drawer only). */
@@ -50,7 +71,12 @@ export interface AppModuleDefinition {
   /** Schema used to create tables in Airtable when enabling the module. */
   tableBlueprints?: readonly ModuleTableBlueprint[]
   screens?: readonly ModuleScreenContribution[]
-  /** Preferred: each item declares `placements` (app drawer vs Electron menu). */
+  /**
+   * Drawer nav groups for this module. Items reference groups via `menuGroupId`.
+   * Use `scope: 'global'` to merge items from multiple modules under one section.
+   */
+  menuNav?: ModuleMenuNavConfig
+  /** Preferred: `menuNav` + `menuGroupId`, or explicit `placements`. */
   menuItems?: readonly ModuleMenuItemContribution[]
   /** @deprecated Use `menuItems` with `placements` instead. */
   menuSections?: readonly ModuleMenuSectionContribution[]

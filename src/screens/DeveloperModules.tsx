@@ -44,9 +44,11 @@ import {
   UninstallModuleError,
 } from '../lib/modules/uninstallModule.ts'
 import { useAirtable } from '../hooks/useAirtable.ts'
+import { useNavigation } from '../hooks/useNavigation.ts'
 import { useToast } from '../hooks/useToast.ts'
 
 export default function DeveloperModules() {
+  const { navigate } = useNavigation()
   const modules = getDiscoveredModules()
   const toast = useToast()
   const { client, isReady } = useAirtable()
@@ -274,6 +276,12 @@ export default function DeveloperModules() {
         menu items. In Electron dev, changes update <code>enabledModules.ts</code> and{' '}
         <code>tables.ts</code> under each module folder.
       </Typography>
+
+      <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+        <Button size="small" variant="outlined" onClick={() => navigate('devBaseTables')}>
+          Base tables inventory
+        </Button>
+      </Stack>
 
       <Alert severity="info" sx={{ mb: 2 }}>
         Source:{' '}

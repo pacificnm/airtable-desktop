@@ -70,4 +70,59 @@ describe('buildMenu', () => {
     expect(buildAppDrawerSections(items)).toHaveLength(1)
     expect(buildElectronMenuContributions(items)).toHaveLength(1)
   })
+
+  it('merges menuNav global groups across modules', () => {
+    const makeDef = (id: string, itemId: string, viewId: string) =>
+      ({
+        id,
+        name: id,
+        version: '0.0.0',
+        menuNav: {
+          groups: [
+            { id: 'reference', label: 'Reference data', scope: 'global', order: 50 },
+          ],
+        },
+        menuItems: [
+          {
+            id: itemId,
+            label: itemId,
+            icon: 'gridView' as const,
+            viewId: viewId as 'home',
+            menuGroupId: 'reference',
+          },
+        ],
+      }) satisfies AppModuleDefinition
+
+    const items = [
+      ...expandModuleMenuItems('city', makeDef('city', 'city-list', 'cityList')),
+      ...expandModuleMenuItems('state', makeDef('state', 'state-list', 'stateList')),
+    ]
+    const drawer = buildAppDrawerSections(items)
+
+    expect(drawer).toHaveLength(1)
+    expect(drawer[0]?.id).toBe('global:reference')
+    expect(drawer[0]?.items).toHaveLength(2)
+  })
+
+  it('keeps module-scoped sections separate by default', () => {
+    const def = {
+      id: 'alpha',
+      name: 'Alpha',
+      version: '0.0.0',
+      menuItems: [
+        {
+          id: 'one',
+          label: 'One',
+          icon: 'gridView' as const,
+          viewId: 'home',
+          placements: [
+            { surface: 'appDrawer', section: { id: 'tools', label: 'Tools' } },
+          ],
+        },
+      ],
+    } satisfies AppModuleDefinition
+
+    const items = expandModuleMenuItems('alpha', def)
+    expect(buildAppDrawerSections(items)[0]?.id).toBe('alpha:tools')
+  })
 })

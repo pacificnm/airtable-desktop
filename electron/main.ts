@@ -1,6 +1,12 @@
 import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron'
+import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { createInterface } from 'node:readline'
+import {
+  DEFAULT_SPACE_DATA_FILE_PAGE_SIZE,
+  MAX_SPACE_DATA_FILE_PAGE_SIZE,
+} from './dataFileLimits.js'
 import { fileURLToPath } from 'node:url'
 import { PRODUCTION_CSP } from './csp.js'
 import {
@@ -276,9 +282,18 @@ interface DataFileEntry {
   modifiedAt: number
 }
 
-interface SpaceDataFileMatchCriteria {
-  /** Required Building Location ID (e.g. "1000002206"); the only definitive match key. */
+interface SpaceDataFileListCriteria {
+  /** When set, only rows with this Building Location ID (e.g. "1000002206"). */
   locationId?: string
+  /** Number of matching rows to skip (for pagination). */
+  offset?: number
+  /** Max rows to return (default 100, max 500). */
+  limit?: number
+  /** Case-insensitive substring match across key columns. */
+  search?: string
+  description?: string
+  category?: string
+  status?: string
 }
 
 interface DataFileSpaceRow {
@@ -398,33 +413,271 @@ function dataFileSpaceRow(
   }
 }
 
-function parseMatchingSpaceRows(
-  csv: string,
-  criteria: SpaceDataFileMatchCriteria,
-): DataFileSpaceRow[] {
+function includesIgnoreCase(haystack: string | undefined, needle: string): boolean {
+  if (!haystack) return false
+  return haystack.toLowerCase().includes(needle)
+}
+
+function rowMatchesListCriteria(
+  row: DataFileSpaceRow,
+  criteria: SpaceDataFileListCriteria,
+): boolean {
+  const search = criteria.search?.trim().toLowerCase()
+  if (search) {
+    const matched =
+      includesIgnoreCase(row.locationID, search) ||
+      includesIgnoreCase(row.spaceID, search) ||
+      includesIgnoreCase(row.spaceName, search) ||
+      includesIgnoreCase(row.floorID, search) ||
+      includesIgnoreCase(row.description, search)
+    if (!matched) return false
+  }
+  const description = criteria.description?.trim()
+  if (description && row.description !== description) return false
+  const category = criteria.category?.trim()
+  if (category && row.category !== category) return false
+  const status = criteria.status?.trim()
+  if (status && row.status !== status) return false
+  return true
+}
+
+interface SpaceDataFilePageResult {
+  rows: DataFileSpaceRow[]
+  offset: number
+  limit: number
+  hasMore: boolean
+  fileSizeBytes: number
+}
+
+/** Stream the CSV from disk; never loads the whole file into memory. */
+async function readSpaceDataFilePage(
+  filePath: string,
+  criteria: SpaceDataFileListCriteria = {},
+): Promise<SpaceDataFilePageResult> {
   const locationId = normalizeMatchValue(criteria.locationId)
-  if (!locationId) return []
+  const offset = Math.max(0, Math.floor(criteria.offset ?? 0))
+  const limit = Math.min(
+    MAX_SPACE_DATA_FILE_PAGE_SIZE,
+    Math.max(1, Math.floor(criteria.limit ?? DEFAULT_SPACE_DATA_FILE_PAGE_SIZE)),
+  )
 
-  const lines = csv.split(/\r?\n/).filter((line) => line.trim() !== '')
-  if (lines.length === 0) return []
+  const stat = await fs.stat(filePath)
+  const stream = createReadStream(filePath, { encoding: 'utf8' })
+  const lines = createInterface({ input: stream, crlfDelay: Infinity })
 
-  const headers = parseCsvLine(lines[0]).map((header) => header.trim())
-  const locationIdIdx = headers.indexOf('LOCATION_ID')
-  if (locationIdIdx < 0) return []
-
+  let headers: string[] | null = null
+  let locationIdIdx = -1
+  let lineNo = 0
+  let skipped = 0
   const rows: DataFileSpaceRow[] = []
+  let hasMore = false
 
-  for (let i = 1; i < lines.length; i += 1) {
-    const parsed = parseCsvLine(lines[i])
-    if (normalizeMatchValue(parsed[locationIdIdx]) !== locationId) continue
-    const row: Record<string, string> = {}
+  for await (const rawLine of lines) {
+    const line = rawLine.trim()
+    if (!line) continue
+    lineNo += 1
+
+    if (headers == null) {
+      headers = parseCsvLine(line).map((header) => header.trim())
+      locationIdIdx = headers.indexOf('LOCATION_ID')
+      if (locationIdIdx < 0) {
+        throw new Error('Not a space data file (missing LOCATION_ID column).')
+      }
+      if (headers.indexOf('SPACE_ID') < 0) {
+        throw new Error(
+          'Not a space data file (missing SPACE_ID column). Choose a location_space_current_*.csv file.',
+        )
+      }
+      continue
+    }
+
+    const parsed = parseCsvLine(line)
+    if (locationId) {
+      if (normalizeMatchValue(parsed[locationIdIdx]) !== locationId) continue
+    }
+
+    const record: Record<string, string> = {}
     headers.forEach((header, index) => {
-      row[header] = parsed[index] ?? ''
+      record[header] = parsed[index] ?? ''
     })
-    rows.push(dataFileSpaceRow(row, i + 1))
+    const row = dataFileSpaceRow(record, lineNo)
+    if (!rowMatchesListCriteria(row, criteria)) continue
+
+    if (skipped < offset) {
+      skipped += 1
+      continue
+    }
+
+    if (rows.length < limit) {
+      rows.push(row)
+      continue
+    }
+
+    hasMore = true
+    break
   }
 
-  return rows
+  return { rows, offset, limit, hasMore, fileSizeBytes: stat.size }
+}
+
+interface BuildingDataFileListCriteria {
+  offset?: number
+  limit?: number
+  search?: string
+  region?: string
+  status?: string
+  state?: string
+  country?: string
+}
+
+interface DataFileBuildingRow {
+  sourceRow: number
+  locationID?: string
+  locationIDLegacy?: string
+  buildingCode?: string
+  preferredName?: string
+  address?: string
+  city?: string
+  state?: string
+  postalCode?: string
+  country?: string
+  nikeRegion?: string
+  locationStatus?: string
+  classification?: string
+  brand?: string
+  group?: string
+  use?: string
+  ownership?: string
+  latitude?: number
+  longitude?: number
+  squareFootageImperial?: number
+  maxCapacity?: number
+}
+
+function dataFileBuildingRow(
+  row: Record<string, string>,
+  sourceRow: number,
+): DataFileBuildingRow {
+  return {
+    sourceRow,
+    locationID: cell(row, 'LOCATION_ID'),
+    locationIDLegacy: cell(row, 'LOCATION_ID_LEGACY'),
+    buildingCode: cell(row, 'LOCATION_CD'),
+    preferredName: cell(row, 'LOCATION_NM'),
+    address: cell(row, 'ADDRESS'),
+    city: cell(row, 'CITY'),
+    state: cell(row, 'STATE'),
+    postalCode: cell(row, 'ZIP_CD'),
+    country: cell(row, 'COUNTRY'),
+    nikeRegion: cell(row, 'NIKE_REGION'),
+    locationStatus: cell(row, 'LOCATION_STATUS'),
+    classification: cell(row, 'LOCATION_CLASSIFICATION'),
+    brand: cell(row, 'LOCATION_BRAND'),
+    group: cell(row, 'LOCATION_GROUP'),
+    use: cell(row, 'LOCATION_USE'),
+    ownership: cell(row, 'LOCATION_OWNERSHIP'),
+    latitude: toNumber(cell(row, 'LATITUDE')),
+    longitude: toNumber(cell(row, 'LONGITUDE')),
+    squareFootageImperial: toNumber(cell(row, 'LOCATION_USABLE_IMPERIAL')),
+    maxCapacity: toNumber(cell(row, 'MAX_CAPACITY')),
+  }
+}
+
+function rowMatchesBuildingListCriteria(
+  row: DataFileBuildingRow,
+  criteria: BuildingDataFileListCriteria,
+): boolean {
+  const search = criteria.search?.trim().toLowerCase()
+  if (search) {
+    const matched =
+      includesIgnoreCase(row.locationID, search) ||
+      includesIgnoreCase(row.buildingCode, search) ||
+      includesIgnoreCase(row.preferredName, search) ||
+      includesIgnoreCase(row.address, search) ||
+      includesIgnoreCase(row.city, search)
+    if (!matched) return false
+  }
+  const region = criteria.region?.trim()
+  if (region && row.nikeRegion !== region) return false
+  const status = criteria.status?.trim()
+  if (status && row.locationStatus !== status) return false
+  const state = criteria.state?.trim()
+  if (state && row.state !== state) return false
+  const country = criteria.country?.trim()
+  if (country && row.country !== country) return false
+  return true
+}
+
+interface BuildingDataFilePageResult {
+  rows: DataFileBuildingRow[]
+  offset: number
+  limit: number
+  hasMore: boolean
+  fileSizeBytes: number
+}
+
+async function readBuildingDataFilePage(
+  filePath: string,
+  criteria: BuildingDataFileListCriteria = {},
+): Promise<BuildingDataFilePageResult> {
+  const offset = Math.max(0, Math.floor(criteria.offset ?? 0))
+  const limit = Math.min(
+    MAX_SPACE_DATA_FILE_PAGE_SIZE,
+    Math.max(1, Math.floor(criteria.limit ?? DEFAULT_SPACE_DATA_FILE_PAGE_SIZE)),
+  )
+
+  const stat = await fs.stat(filePath)
+  const stream = createReadStream(filePath, { encoding: 'utf8' })
+  const lines = createInterface({ input: stream, crlfDelay: Infinity })
+
+  let headers: string[] | null = null
+  let lineNo = 0
+  let skipped = 0
+  const rows: DataFileBuildingRow[] = []
+  let hasMore = false
+
+  for await (const rawLine of lines) {
+    const line = rawLine.trim()
+    if (!line) continue
+    lineNo += 1
+
+    if (headers == null) {
+      headers = parseCsvLine(line).map((header) => header.trim())
+      const locationIdIdx = headers.indexOf('LOCATION_ID')
+      if (locationIdIdx < 0) {
+        throw new Error('Not a location/building data file (missing LOCATION_ID column).')
+      }
+      if (headers.indexOf('LOCATION_NM') < 0) {
+        throw new Error(
+          'Not a location/building data file (missing LOCATION_NM column). Choose a location_current_*.csv file.',
+        )
+      }
+      continue
+    }
+
+    const parsed = parseCsvLine(line)
+    const record: Record<string, string> = {}
+    headers.forEach((header, index) => {
+      record[header] = parsed[index] ?? ''
+    })
+    const row = dataFileBuildingRow(record, lineNo)
+    if (!rowMatchesBuildingListCriteria(row, criteria)) continue
+
+    if (skipped < offset) {
+      skipped += 1
+      continue
+    }
+
+    if (rows.length < limit) {
+      rows.push(row)
+      continue
+    }
+
+    hasMore = true
+    break
+  }
+
+  return { rows, offset, limit, hasMore, fileSizeBytes: stat.size }
 }
 
 ipcMain.handle(
@@ -527,7 +780,15 @@ ipcMain.handle(
     criteria: unknown,
     fileName?: unknown,
   ): Promise<
-    | { ok: true; sourceFile: string; rows: DataFileSpaceRow[] }
+    | {
+        ok: true
+        sourceFile: string
+        rows: DataFileSpaceRow[]
+        offset: number
+        limit: number
+        hasMore: boolean
+        fileSizeBytes: number
+      }
     | { ok: false; error: string }
   > => {
     if (!criteria || typeof criteria !== 'object') {
@@ -543,7 +804,7 @@ ipcMain.handle(
       return { ok: false, error: 'Invalid file name.' }
     }
 
-    const parsedCriteria = criteria as SpaceDataFileMatchCriteria
+    const parsedCriteria = criteria as SpaceDataFileListCriteria
     try {
       const files = await listDataFileEntries('space')
       const selected =
@@ -560,11 +821,80 @@ ipcMain.handle(
         return { ok: false, error: 'Refused to read outside module data directory.' }
       }
 
-      const csv = await fs.readFile(selected.path, 'utf8')
+      const page = await readSpaceDataFilePage(selected.path, parsedCriteria)
       return {
         ok: true,
         sourceFile: selected.name,
-        rows: parseMatchingSpaceRows(csv, parsedCriteria),
+        rows: page.rows,
+        offset: page.offset,
+        limit: page.limit,
+        hasMore: page.hasMore,
+        fileSizeBytes: page.fileSizeBytes,
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Read failed'
+      return { ok: false, error: message }
+    }
+  },
+)
+
+ipcMain.handle(
+  'files:listDataFileBuildings',
+  async (
+    _event,
+    criteria: unknown,
+    fileName?: unknown,
+  ): Promise<
+    | {
+        ok: true
+        sourceFile: string
+        rows: DataFileBuildingRow[]
+        offset: number
+        limit: number
+        hasMore: boolean
+        fileSizeBytes: number
+      }
+    | { ok: false; error: string }
+  > => {
+    if (!criteria || typeof criteria !== 'object') {
+      return { ok: false, error: 'Invalid match criteria.' }
+    }
+    if (fileName !== undefined && typeof fileName !== 'string') {
+      return { ok: false, error: 'Invalid file name.' }
+    }
+    if (
+      typeof fileName === 'string' &&
+      !VALID_DATA_FILE_NAME_RE.test(fileName)
+    ) {
+      return { ok: false, error: 'Invalid file name.' }
+    }
+
+    const parsedCriteria = criteria as BuildingDataFileListCriteria
+    try {
+      const files = await listDataFileEntries('location')
+      const selected =
+        typeof fileName === 'string'
+          ? files.find((file) => file.name === fileName)
+          : files[0]
+
+      if (!selected) {
+        return { ok: false, error: 'No uploaded Location data file found.' }
+      }
+
+      const dir = dataFileDir('location')
+      if (!isInsideDir(selected.path, dir)) {
+        return { ok: false, error: 'Refused to read outside module data directory.' }
+      }
+
+      const page = await readBuildingDataFilePage(selected.path, parsedCriteria)
+      return {
+        ok: true,
+        sourceFile: selected.name,
+        rows: page.rows,
+        offset: page.offset,
+        limit: page.limit,
+        hasMore: page.hasMore,
+        fileSizeBytes: page.fileSizeBytes,
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Read failed'

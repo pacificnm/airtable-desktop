@@ -1,6 +1,6 @@
 # Custom module repos (`module-repos/`)
 
-Keep the **default app** in [`modules/`](../modules/) (`config`, `roles`, `users`, `notifications`). Put **your features** in [`module-repos/`](../module-repos/) — one **GitHub repository per folder**, usually as a **git submodule**.
+Keep the **default app** in [`modules/`](../modules/) (`config`, `roles`, `users`, `notifications`). Put **Shared base features** in [`module-repos/`](../module-repos/) — a **single git submodule** pointing at [pacificnm/airtable-shared-base](https://github.com/pacificnm/airtable-shared-base).
 
 The desktop app discovers both locations automatically (`modules/*/index.ts` and `module-repos/*/index.ts`).
 
@@ -13,57 +13,58 @@ airtable-desktop/
     roles/
     users/
     notifications/
-  module-repos/         ← your features (submodules)
-    inventory/          ← github.com/you/atd-module-inventory
+  module-repos/         ← submodule → github.com/pacificnm/airtable-shared-base
+    location/
+    space/
+    city/
+    …
 ```
 
-## 1. Create the module repo on GitHub
-
-1. Create an empty repo, e.g. `you/atd-module-inventory`.
-2. Copy the layout from `modules/roles/` into the **root** of the new repo (`index.ts`, `tables.ts`, `screens/`, …).
-3. Keep imports like bundled modules:
-
-```ts
-import type { AppModuleDefinition } from '../../src/lib/modules/types.ts'
-```
-
-4. Commit and push.
-
-## 2. Add submodule under `module-repos/`
-
-```bash
-git submodule add https://github.com/you/atd-module-inventory.git module-repos/inventory
-git add .gitmodules module-repos/inventory
-git commit -m "Add inventory module submodule"
-```
-
-The folder name should match the module `id` in `index.ts` (e.g. `inventory`).
-
-## 3. Enable
-
-1. Add `'inventory'` via **Developer → Modules** or `src/config/enabledModules.ts`.
-2. Restart dev, connect to Airtable, **Enable** to provision tables.
-
-## Cloning
+## 1. Clone
 
 ```bash
 git clone --recurse-submodules https://github.com/you/airtable-desktop.git
 # or after clone:
-git submodule update --init --recursive
+git submodule update --init module-repos
 ```
+
+## 2. Add or change a module
+
+1. Edit or scaffold under `module-repos/<moduleId>/` (see **Developer → Base tables** in the app).
+2. Commit and push in the **shared-base** repo:
+
+```bash
+cd module-repos
+git add .
+git commit -m "Add or update module"
+git push
+```
+
+3. In **airtable-desktop**, commit the new submodule SHA.
+4. Enable the module id via **Developer → Modules** or `src/config/enabledModules.ts`.
+
+Each module folder matches the `modules/roles/` layout (`index.ts`, `tables.ts`, `screens/`, …). Imports use the app `@/` alias:
+
+```ts
+import type { AppModuleDefinition } from '@/lib/modules/types.ts'
+```
+
+### Menu grouping
+
+Declare shared drawer sections in `menuNav.groups` with `scope: 'global'`, then `menuGroupId` on items (e.g. all Location/geo modules use `menuGroupId: 'location'`).
 
 ## Day-to-day
 
 | Task | Command |
 |------|---------|
-| Update submodules after pull | `git submodule update --init --recursive` |
-| Work on a module | `cd module-repos/inventory`, commit/push there |
-| Pin version in app | Commit the submodule pointer in the parent repo |
+| Update modules after pull | `git submodule update --init module-repos` |
+| Work on modules | `cd module-repos`, commit/push to shared-base |
+| Pin version in app | Commit submodule pointer in airtable-desktop |
 
 ## Rules
 
 - Do **not** reuse ids from default modules (`config`, `roles`, `users`, `notifications`) in `module-repos/`.
-- Default modules stay in `modules/`; only **new** features go in `module-repos/`.
+- Default modules stay in `modules/`; Shared base tables live only in **airtable-shared-base**.
 
 ## npm packages
 

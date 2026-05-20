@@ -17,9 +17,25 @@ export type MenuIconId =
 /** Electron menu bar targets modules can contribute to (besides system roles). */
 export type ElectronMenuBarId = 'view' | 'developer'
 
+/** How a drawer section id is namespaced when merging items from multiple modules. */
+export type MenuNavScope = 'module' | 'global'
+
+export interface MenuNavSectionRef {
+  id: string
+  label: string
+  /**
+   * `module` (default): section key is `moduleId:sectionId` — only this module's items.
+   * `global`: section key is `global:sectionId` — merge items from any module using the same id.
+   */
+  scope?: MenuNavScope
+  /** Sort order among drawer sections (lower first). */
+  order?: number
+}
+
 export type AppDrawerMenuPlacement = {
   surface: 'appDrawer'
-  section: { id: string; label: string }
+  section: MenuNavSectionRef
+  /** Item order within the section (lower first). */
   order?: number
 }
 

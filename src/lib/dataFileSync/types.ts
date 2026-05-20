@@ -32,6 +32,11 @@ export interface DataFileFieldMapping {
    * "leave as is" rather than clearing the Airtable column.
    */
   skipIfBlank?: boolean
+  /**
+   * When false, the field appears in the mapping panel and dry-run diff but is
+   * never sent on create/update (formula, lookup, rollup, etc.).
+   */
+  writeOnSync?: boolean
   /** Free-form note shown in the UI to explain the mapping. */
   note?: string
 }

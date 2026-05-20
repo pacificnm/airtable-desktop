@@ -6,6 +6,7 @@ export const CORE_APP_VIEWS = [
   'devTokens',
   'devTheme',
   'devModules',
+  'devBaseTables',
 ] as const
 
 export type CoreAppView = (typeof CORE_APP_VIEWS)[number]

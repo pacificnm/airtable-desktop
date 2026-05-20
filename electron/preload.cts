@@ -100,9 +100,14 @@ export type DeleteDataFileResult =
   | { ok: true }
   | { ok: false; error: string }
 
-export interface SpaceDataFileMatchCriteria {
-  /** Required Building Location ID (e.g. "1000002206"); the only definitive match key. */
+export interface SpaceDataFileListCriteria {
   locationId?: string
+  offset?: number
+  limit?: number
+  search?: string
+  description?: string
+  category?: string
+  status?: string
 }
 
 export interface DataFileSpaceRow {
@@ -119,7 +124,61 @@ export interface DataFileSpaceRow {
 }
 
 export type ListDataFileSpacesResult =
-  | { ok: true; sourceFile: string; rows: DataFileSpaceRow[] }
+  | {
+      ok: true
+      sourceFile: string
+      rows: DataFileSpaceRow[]
+      offset: number
+      limit: number
+      hasMore: boolean
+      fileSizeBytes: number
+    }
+  | { ok: false; error: string }
+
+export interface BuildingDataFileListCriteria {
+  offset?: number
+  limit?: number
+  search?: string
+  region?: string
+  status?: string
+  state?: string
+  country?: string
+}
+
+export interface DataFileBuildingRow {
+  sourceRow: number
+  locationID?: string
+  locationIDLegacy?: string
+  buildingCode?: string
+  preferredName?: string
+  address?: string
+  city?: string
+  state?: string
+  postalCode?: string
+  country?: string
+  nikeRegion?: string
+  locationStatus?: string
+  classification?: string
+  brand?: string
+  group?: string
+  use?: string
+  ownership?: string
+  latitude?: number
+  longitude?: number
+  squareFootageImperial?: number
+  maxCapacity?: number
+}
+
+export type ListDataFileBuildingsResult =
+  | {
+      ok: true
+      sourceFile: string
+      rows: DataFileBuildingRow[]
+      offset: number
+      limit: number
+      hasMore: boolean
+      fileSizeBytes: number
+    }
   | { ok: false; error: string }
 
 contextBridge.exposeInMainWorld('electronFiles', {
@@ -134,7 +193,7 @@ contextBridge.exposeInMainWorld('electronFiles', {
       fileName,
     ) as Promise<DeleteDataFileResult>,
   listDataFileSpaces: (
-    criteria: SpaceDataFileMatchCriteria,
+    criteria: SpaceDataFileListCriteria,
     fileName?: string,
   ) =>
     ipcRenderer.invoke(
@@ -142,6 +201,15 @@ contextBridge.exposeInMainWorld('electronFiles', {
       criteria,
       fileName,
     ) as Promise<ListDataFileSpacesResult>,
+  listDataFileBuildings: (
+    criteria: BuildingDataFileListCriteria,
+    fileName?: string,
+  ) =>
+    ipcRenderer.invoke(
+      'files:listDataFileBuildings',
+      criteria,
+      fileName,
+    ) as Promise<ListDataFileBuildingsResult>,
 })
 
 contextBridge.exposeInMainWorld('electronApp', {

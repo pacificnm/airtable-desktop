@@ -1,5 +1,8 @@
 import type { AppView } from '../../components/main/appView.ts'
-import type { AppModuleDefinition } from '../modules/types.ts'
+import type {
+  AppModuleDefinition,
+  ModuleMenuItemContribution,
+} from '../modules/types.ts'
 import { coreMenuItems } from './coreMenuContributions.ts'
 import type {
   AppDrawerMenuPlacement,
@@ -7,6 +10,7 @@ import type {
   ElectronMenuPlacement,
   MenuIconId,
   MenuNavItem,
+  MenuNavSectionRef,
   MenuPlacement,
   MenuSection,
 } from './menuTypes.ts'
@@ -22,12 +26,59 @@ export interface ResolvedMenuItem {
   placements: readonly MenuPlacement[]
 }
 
-function drawerSectionKey(moduleId: string, sectionId: string): string {
-  return `${moduleId}:${sectionId}`
+export function drawerSectionKey(
+  moduleId: string,
+  section: MenuNavSectionRef,
+): string {
+  if (section.scope === 'global') return `global:${section.id}`
+  return `${moduleId}:${section.id}`
 }
 
-function itemOrder(placement: AppDrawerMenuPlacement | ElectronMenuPlacement, fallback: number): number {
+function itemOrder(
+  placement: AppDrawerMenuPlacement | ElectronMenuPlacement,
+  fallback: number,
+): number {
   return placement.order ?? fallback
+}
+
+function drawerPlacementFromGroup(
+  group: NonNullable<AppModuleDefinition['menuNav']>['groups'][number],
+): AppDrawerMenuPlacement {
+  return {
+    surface: 'appDrawer',
+    section: {
+      id: group.id,
+      label: group.label,
+      scope: group.scope,
+      order: group.order,
+    },
+  }
+}
+
+export function resolveModuleMenuItemPlacements(
+  moduleId: string,
+  definition: AppModuleDefinition,
+  item: ModuleMenuItemContribution,
+): readonly MenuPlacement[] {
+  const explicit = item.placements ?? []
+  const group = item.menuGroupId
+    ? definition.menuNav?.groups.find((g) => g.id === item.menuGroupId)
+    : undefined
+
+  if (item.menuGroupId && !group) {
+    console.warn(
+      `[${moduleId}] menu item "${item.id}" references unknown menuGroupId "${item.menuGroupId}"`,
+    )
+  }
+
+  const fromGroup = group ? [drawerPlacementFromGroup(group)] : []
+  const nonDrawer = explicit.filter((p) => p.surface !== 'appDrawer')
+
+  if (fromGroup.length > 0) {
+    return [...fromGroup, ...nonDrawer]
+  }
+
+  return explicit
 }
 
 export function expandModuleMenuItems(
@@ -43,7 +94,7 @@ export function expandModuleMenuItems(
       viewId: item.viewId,
       icon: item.icon,
       order: item.order ?? index * 10,
-      placements: item.placements,
+      placements: resolveModuleMenuItemPlacements(moduleId, definition, item),
     }))
   }
 
@@ -63,7 +114,7 @@ export function expandModuleMenuItems(
         placements: [
           {
             surface: 'appDrawer',
-            section: { id: section.id, label: section.label },
+            section: { id: section.id, label: section.label, scope: 'module' },
           },
         ],
       })
@@ -88,17 +139,35 @@ export function getCoreMenuItems(): ResolvedMenuItem[] {
 export function buildAppDrawerSections(items: readonly ResolvedMenuItem[]): MenuSection[] {
   const sectionMap = new Map<
     string,
-    { label: string; entries: { order: number; nav: MenuNavItem }[] }
+    { label: string; sectionOrder: number; entries: { order: number; nav: MenuNavItem }[] }
   >()
 
   for (const item of items) {
     for (const placement of item.placements) {
       if (placement.surface !== 'appDrawer') continue
-      const sectionId = drawerSectionKey(item.moduleId, placement.section.id)
+      const sectionId = drawerSectionKey(item.moduleId, placement.section)
       let section = sectionMap.get(sectionId)
+      const sectionOrder = placement.section.order ?? 1000
       if (!section) {
-        section = { label: placement.section.label, entries: [] }
+        section = {
+          label: placement.section.label,
+          sectionOrder,
+          entries: [],
+        }
         sectionMap.set(sectionId, section)
+      } else if (sectionOrder < section.sectionOrder) {
+        section.sectionOrder = sectionOrder
+      }
+      if (
+        placement.section.label &&
+        section.label !== placement.section.label &&
+        section.entries.length > 0
+      ) {
+        console.warn(
+          `Drawer section "${sectionId}" label mismatch: "${section.label}" vs "${placement.section.label}"`,
+        )
+      } else if (placement.section.label) {
+        section.label = placement.section.label
       }
       section.entries.push({
         order: itemOrder(placement, item.order),
@@ -113,19 +182,23 @@ export function buildAppDrawerSections(items: readonly ResolvedMenuItem[]): Menu
     }
   }
 
-  const sections: MenuSection[] = [...sectionMap.entries()].map(([id, section]) => ({
+  const built = [...sectionMap.entries()].map(([id, section]) => ({
     id,
     label: section.label,
+    sectionOrder: section.sectionOrder,
     items: section.entries
       .sort((a, b) => a.order - b.order)
       .map((e) => e.nav),
   }))
 
-  return sections.sort((a, b) => {
+  built.sort((a, b) => {
     if (a.id === 'core:main') return -1
     if (b.id === 'core:main') return 1
+    if (a.sectionOrder !== b.sectionOrder) return a.sectionOrder - b.sectionOrder
     return a.label.localeCompare(b.label)
   })
+
+  return built.map(({ id, label, items }) => ({ id, label, items }))
 }
 
 export function buildElectronMenuContributions(

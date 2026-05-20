@@ -3,6 +3,7 @@ export type AppMenuAction =
   | 'openDebugPanel'
   | 'navigate:devTables'
   | 'navigate:devModules'
+  | 'navigate:devBaseTables'
   | 'navigate:devDocs'
   | 'navigate:devTokens'
   | 'navigate:devTheme'

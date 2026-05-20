@@ -52,6 +52,14 @@ export const coreMenuItems = [
     placements: [{ surface: 'electron', menu: 'developer', order: 20 }],
   },
   {
+    id: 'base-tables',
+    label: 'Base tables',
+    viewId: 'devBaseTables',
+    icon: 'tableChart',
+    order: 15,
+    placements: [{ surface: 'electron', menu: 'developer', order: 15 }],
+  },
+  {
     id: 'docs',
     label: 'Documentation',
     viewId: 'devDocs',

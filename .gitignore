@@ -21,6 +21,9 @@ release
 out
 *.local
 
+# Fetched Meta API dumps (local dev)
+base-schema.json
+
 # Test / tooling artifacts
 coverage
 *.tsbuildinfo

@@ -19,6 +19,7 @@ const coreScreens: readonly ScreenConfig[] = [
   { id: 'devTokens', title: 'CSS tokens' },
   { id: 'devTheme', title: 'MUI theme' },
   { id: 'devModules', title: 'Modules' },
+  { id: 'devBaseTables', title: 'Base tables' },
 ]
 
 export const screens: readonly ScreenConfig[] = [
@@ -43,6 +44,7 @@ const coreScreenImporters: Record<CoreAppView, () => Promise<ScreenModule>> = {
   devTokens: () => import('../screens/DeveloperTokens.tsx'),
   devTheme: () => import('../screens/DeveloperTheme.tsx'),
   devModules: () => import('../screens/DeveloperModules.tsx'),
+  devBaseTables: () => import('../screens/DeveloperBaseTables.tsx'),
 }
 
 export const screenImporters: Record<string, () => Promise<ScreenModule>> = {

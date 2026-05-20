@@ -29,6 +29,8 @@
     "dist:linux": "npm run build && electron-builder --linux",
     "test": "vitest",
     "test:run": "vitest run",
+    "fetch-base-schema": "node scripts/fetch-base-schema.mjs --from-electron",
+    "scaffold-modules": "vite-node scripts/scaffold-modules-from-schema.ts",
     "typecheck": "tsc -b && tsc -p tsconfig.electron.json --noEmit && tsc -p tsconfig.electron.preload.json --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

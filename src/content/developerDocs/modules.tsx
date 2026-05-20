@@ -141,30 +141,29 @@ const myModule = {
 export default myModule`}</DocPre>
 
       <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-        Menu placements
+        Menu nav groups
       </Typography>
       <DocParagraph>
-        Each <Code>menuItems</Code> entry chooses where it appears. Legacy{' '}
-        <Code>menuSections</Code> still works and defaults to the <strong>app drawer</strong>{' '}
-        only.
+        Declare drawer sections in <Code>menuNav.groups</Code>, then attach items with{' '}
+        <Code>menuGroupId</Code>. Use <Code>scope: 'global'</Code> so multiple modules merge
+        into one hamburger section (e.g. all reference tables under “Reference data”). Omit
+        scope (or <Code>module</Code>) to keep a section private to that module. Legacy{' '}
+        <Code>menuSections</Code> still works.
       </DocParagraph>
-      <List dense disablePadding sx={{ mb: 2 }}>
-        <ListItem>
-          <ListItemText
-            primary={<Code>{`{ surface: 'appDrawer', section: { id, label } }`}</Code>}
-            secondary="Hamburger menu section (Home + module sections)."
-          />
-        </ListItem>
-        <ListItem>
-          <ListItemText
-            primary={
-              <Code>{`{ surface: 'electron', menu: 'view' | 'developer', order? }`}</Code>
-            }
-            secondary="Native menu bar (View or Developer). Synced on app load. Use ⌘K / Ctrl+K for screens that are Electron-only."
-          />
-        </ListItem>
-      </List>
-      <DocPre>{`menuItems: [
+      <DocPre>{`menuNav: {
+  groups: [
+    { id: 'location', label: 'Location', scope: 'global', order: 20 },
+    { id: 'reference', label: 'Reference data', scope: 'global', order: 200 },
+  ],
+},
+menuItems: [
+  {
+    id: 'city-list',
+    label: 'City',
+    icon: 'gridView',
+    viewId: 'cityList',
+    menuGroupId: 'location',
+  },
   {
     id: 'inventory-list',
     label: 'Inventory',
@@ -176,6 +175,30 @@ export default myModule`}</DocPre>
     ],
   },
 ]`}</DocPre>
+      <List dense disablePadding sx={{ mb: 2 }}>
+        <ListItem>
+          <ListItemText
+            primary={<Code>menuGroupId</Code>}
+            secondary="Drawer only — resolved from this module's menuNav.groups."
+          />
+        </ListItem>
+        <ListItem>
+          <ListItemText
+            primary={
+              <Code>{`placements: [{ surface: 'appDrawer', section: { id, label, scope?, order? } }]`}</Code>
+            }
+            secondary="Explicit drawer section (per-item). Use scope global to merge across modules."
+          />
+        </ListItem>
+        <ListItem>
+          <ListItemText
+            primary={
+              <Code>{`{ surface: 'electron', menu: 'view' | 'developer', order? }`}</Code>
+            }
+            secondary="Native menu bar. Combine with menuGroupId for drawer + Electron."
+          />
+        </ListItem>
+      </List>
       <DocParagraph>
         Built-in developer tools (Tables, Modules, Documentation, CSS tokens, MUI theme)
         register in <strong>Electron menus only</strong> via{' '}
