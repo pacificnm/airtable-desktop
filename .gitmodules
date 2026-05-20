@@ -1,6 +1,3 @@
-[submodule "module-repos/location"]
-	path = module-repos/location
-	url = https://github.com/pacificnm/airtable-location.git
-[submodule "module-repos/space"]
-	path = module-repos/space
-	url = https://github.com/pacificnm/airtable-space.git
+[submodule "module-repos"]
+	path = module-repos
+	url = https://github.com/pacificnm/airtable-shared-base.git
