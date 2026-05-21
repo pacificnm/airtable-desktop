@@ -43,4 +43,12 @@ describe('AirtableDataCache', () => {
     expect(cache.getList('tblB', {})).toBeUndefined()
     expect(cache.getLinkedLabels('tblB', ['Name'])).toEqual({})
   })
+
+  it('peekEntryRaw returns payload for expired entries without evicting', () => {
+    const cache = new AirtableDataCache('appPeek')
+    cache.set('test:key', { ok: true }, -1000)
+    expect(cache.peekEntryRaw('test:key')?.data).toEqual({ ok: true })
+    expect(cache.get('test:key')).toBeUndefined()
+    expect(cache.peekEntryRaw('test:key')).toBeUndefined()
+  })
 })

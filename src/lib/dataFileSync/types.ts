@@ -15,6 +15,11 @@ export interface DataFileLinkLookup {
   tableKey: string
   /** Airtable column on the linked record matched against the CSV value. */
   matchField: string
+  /**
+   * Writable link field id when tables.ts points at a lookup/display column
+   * (e.g. Country → State inverse link `fldt9N4un0BQMKRbo`).
+   */
+  linkFieldId?: string
 }
 
 export interface DataFileFieldMapping {

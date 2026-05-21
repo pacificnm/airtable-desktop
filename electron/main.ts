@@ -525,9 +525,10 @@ interface BuildingDataFileListCriteria {
   limit?: number
   search?: string
   region?: string
-  status?: string
-  state?: string
   country?: string
+  state?: string
+  classification?: string
+  status?: string
 }
 
 interface DataFileBuildingRow {
@@ -542,6 +543,7 @@ interface DataFileBuildingRow {
   postalCode?: string
   country?: string
   nikeRegion?: string
+  nikeTerritory?: string
   locationStatus?: string
   classification?: string
   brand?: string
@@ -551,6 +553,7 @@ interface DataFileBuildingRow {
   latitude?: number
   longitude?: number
   squareFootageImperial?: number
+  rentableImperial?: number
   maxCapacity?: number
 }
 
@@ -570,6 +573,7 @@ function dataFileBuildingRow(
     postalCode: cell(row, 'ZIP_CD'),
     country: cell(row, 'COUNTRY'),
     nikeRegion: cell(row, 'NIKE_REGION'),
+    nikeTerritory: cell(row, 'NIKE_TERRITORY'),
     locationStatus: cell(row, 'LOCATION_STATUS'),
     classification: cell(row, 'LOCATION_CLASSIFICATION'),
     brand: cell(row, 'LOCATION_BRAND'),
@@ -579,6 +583,7 @@ function dataFileBuildingRow(
     latitude: toNumber(cell(row, 'LATITUDE')),
     longitude: toNumber(cell(row, 'LONGITUDE')),
     squareFootageImperial: toNumber(cell(row, 'LOCATION_USABLE_IMPERIAL')),
+    rentableImperial: toNumber(cell(row, 'LOCATION_RENTABLE_IMPERIAL')),
     maxCapacity: toNumber(cell(row, 'MAX_CAPACITY')),
   }
 }
@@ -594,17 +599,22 @@ function rowMatchesBuildingListCriteria(
       includesIgnoreCase(row.buildingCode, search) ||
       includesIgnoreCase(row.preferredName, search) ||
       includesIgnoreCase(row.address, search) ||
+      includesIgnoreCase(row.classification, search) ||
+      includesIgnoreCase(row.use, search) ||
+      includesIgnoreCase(row.ownership, search) ||
       includesIgnoreCase(row.city, search)
     if (!matched) return false
   }
   const region = criteria.region?.trim()
   if (region && row.nikeRegion !== region) return false
-  const status = criteria.status?.trim()
-  if (status && row.locationStatus !== status) return false
-  const state = criteria.state?.trim()
-  if (state && row.state !== state) return false
   const country = criteria.country?.trim()
   if (country && row.country !== country) return false
+  const state = criteria.state?.trim()
+  if (state && row.state !== state) return false
+  const classification = criteria.classification?.trim()
+  if (classification && row.classification !== classification) return false
+  const status = criteria.status?.trim()
+  if (status && row.locationStatus !== status) return false
   return true
 }
 
@@ -678,6 +688,516 @@ async function readBuildingDataFilePage(
   }
 
   return { rows, offset, limit, hasMore, fileSizeBytes: stat.size }
+}
+
+interface NikeRegionDataFileListCriteria {
+  offset?: number
+  limit?: number
+  search?: string
+}
+
+interface DataFileNikeRegionRow {
+  sourceRow: number
+  name: string
+  occurrenceCount: number
+}
+
+interface NikeRegionAccumulator {
+  name: string
+  sourceRow: number
+  occurrenceCount: number
+}
+
+async function collectNikeRegionsFromLocationFile(
+  filePath: string,
+  search?: string,
+): Promise<{ rows: DataFileNikeRegionRow[]; fileSizeBytes: number }> {
+  const stat = await fs.stat(filePath)
+  const stream = createReadStream(filePath, { encoding: 'utf8' })
+  const lines = createInterface({ input: stream, crlfDelay: Infinity })
+
+  let headers: string[] | null = null
+  let lineNo = 0
+  const byKey = new Map<string, NikeRegionAccumulator>()
+  const searchLower = search?.trim().toLowerCase()
+
+  for await (const rawLine of lines) {
+    const line = rawLine.trim()
+    if (!line) continue
+    lineNo += 1
+
+    if (headers == null) {
+      headers = parseCsvLine(line).map((header) => header.trim())
+      if (headers.indexOf('LOCATION_ID') < 0) {
+        throw new Error('Not a location/building data file (missing LOCATION_ID column).')
+      }
+      if (headers.indexOf('NIKE_REGION') < 0) {
+        throw new Error(
+          'Not a location/building data file (missing NIKE_REGION column). Choose a location_current_*.csv file.',
+        )
+      }
+      continue
+    }
+
+    const parsed = parseCsvLine(line)
+    const record: Record<string, string> = {}
+    headers.forEach((header, index) => {
+      record[header] = parsed[index] ?? ''
+    })
+
+    const rawName = cell(record, 'NIKE_REGION')?.trim()
+    if (!rawName) continue
+
+    const key = rawName.toLowerCase()
+    const existing = byKey.get(key)
+    if (existing) {
+      existing.occurrenceCount += 1
+      continue
+    }
+
+    byKey.set(key, {
+      name: rawName,
+      sourceRow: lineNo,
+      occurrenceCount: 1,
+    })
+  }
+
+  let rows = [...byKey.values()].map((entry) => ({
+    sourceRow: entry.sourceRow,
+    name: entry.name,
+    occurrenceCount: entry.occurrenceCount,
+  }))
+
+  if (searchLower) {
+    rows = rows.filter((row) => includesIgnoreCase(row.name, searchLower))
+  }
+
+  rows.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+
+  return { rows, fileSizeBytes: stat.size }
+}
+
+interface NikeRegionDataFilePageResult {
+  rows: DataFileNikeRegionRow[]
+  offset: number
+  limit: number
+  hasMore: boolean
+  fileSizeBytes: number
+}
+
+async function readNikeRegionDataFilePage(
+  filePath: string,
+  criteria: NikeRegionDataFileListCriteria = {},
+): Promise<NikeRegionDataFilePageResult> {
+  const offset = Math.max(0, Math.floor(criteria.offset ?? 0))
+  const limit = Math.min(
+    MAX_SPACE_DATA_FILE_PAGE_SIZE,
+    Math.max(1, Math.floor(criteria.limit ?? DEFAULT_SPACE_DATA_FILE_PAGE_SIZE)),
+  )
+
+  const { rows: allRows, fileSizeBytes } = await collectNikeRegionsFromLocationFile(
+    filePath,
+    criteria.search,
+  )
+
+  const rows = allRows.slice(offset, offset + limit)
+  const hasMore = offset + limit < allRows.length
+
+  return { rows, offset, limit, hasMore, fileSizeBytes }
+}
+
+interface NikeTerritoryDataFileListCriteria {
+  offset?: number
+  limit?: number
+  search?: string
+}
+
+interface DataFileNikeTerritoryRow {
+  sourceRow: number
+  name: string
+  occurrenceCount: number
+}
+
+interface NikeTerritoryAccumulator {
+  name: string
+  sourceRow: number
+  occurrenceCount: number
+}
+
+async function collectNikeTerritoriesFromLocationFile(
+  filePath: string,
+  search?: string,
+): Promise<{ rows: DataFileNikeTerritoryRow[]; fileSizeBytes: number }> {
+  const stat = await fs.stat(filePath)
+  const stream = createReadStream(filePath, { encoding: 'utf8' })
+  const lines = createInterface({ input: stream, crlfDelay: Infinity })
+
+  let headers: string[] | null = null
+  let lineNo = 0
+  const byKey = new Map<string, NikeTerritoryAccumulator>()
+  const searchLower = search?.trim().toLowerCase()
+
+  for await (const rawLine of lines) {
+    const line = rawLine.trim()
+    if (!line) continue
+    lineNo += 1
+
+    if (headers == null) {
+      headers = parseCsvLine(line).map((header) => header.trim())
+      if (headers.indexOf('LOCATION_ID') < 0) {
+        throw new Error('Not a location/building data file (missing LOCATION_ID column).')
+      }
+      if (headers.indexOf('NIKE_TERRITORY') < 0) {
+        throw new Error(
+          'Not a location/building data file (missing NIKE_TERRITORY column). Choose a location_current_*.csv file.',
+        )
+      }
+      continue
+    }
+
+    const parsed = parseCsvLine(line)
+    const record: Record<string, string> = {}
+    headers.forEach((header, index) => {
+      record[header] = parsed[index] ?? ''
+    })
+
+    const rawName = cell(record, 'NIKE_TERRITORY')?.trim()
+    if (!rawName) continue
+
+    const key = rawName.toLowerCase()
+    const existing = byKey.get(key)
+    if (existing) {
+      existing.occurrenceCount += 1
+      continue
+    }
+
+    byKey.set(key, {
+      name: rawName,
+      sourceRow: lineNo,
+      occurrenceCount: 1,
+    })
+  }
+
+  let rows = [...byKey.values()].map((entry) => ({
+    sourceRow: entry.sourceRow,
+    name: entry.name,
+    occurrenceCount: entry.occurrenceCount,
+  }))
+
+  if (searchLower) {
+    rows = rows.filter((row) => includesIgnoreCase(row.name, searchLower))
+  }
+
+  rows.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+
+  return { rows, fileSizeBytes: stat.size }
+}
+
+interface NikeTerritoryDataFilePageResult {
+  rows: DataFileNikeTerritoryRow[]
+  offset: number
+  limit: number
+  hasMore: boolean
+  fileSizeBytes: number
+}
+
+async function readNikeTerritoryDataFilePage(
+  filePath: string,
+  criteria: NikeTerritoryDataFileListCriteria = {},
+): Promise<NikeTerritoryDataFilePageResult> {
+  const offset = Math.max(0, Math.floor(criteria.offset ?? 0))
+  const limit = Math.min(
+    MAX_SPACE_DATA_FILE_PAGE_SIZE,
+    Math.max(1, Math.floor(criteria.limit ?? DEFAULT_SPACE_DATA_FILE_PAGE_SIZE)),
+  )
+
+  const { rows: allRows, fileSizeBytes } = await collectNikeTerritoriesFromLocationFile(
+    filePath,
+    criteria.search,
+  )
+
+  const rows = allRows.slice(offset, offset + limit)
+  const hasMore = offset + limit < allRows.length
+
+  return { rows, offset, limit, hasMore, fileSizeBytes }
+}
+
+interface BuildingClassificationDataFileListCriteria {
+  offset?: number
+  limit?: number
+  search?: string
+}
+
+interface DataFileBuildingClassificationRow {
+  sourceRow: number
+  name: string
+  occurrenceCount: number
+}
+
+interface BuildingClassificationAccumulator {
+  name: string
+  sourceRow: number
+  occurrenceCount: number
+}
+
+async function collectBuildingClassificationsFromLocationFile(
+  filePath: string,
+  search?: string,
+): Promise<{ rows: DataFileBuildingClassificationRow[]; fileSizeBytes: number }> {
+  const stat = await fs.stat(filePath)
+  const stream = createReadStream(filePath, { encoding: 'utf8' })
+  const lines = createInterface({ input: stream, crlfDelay: Infinity })
+
+  let headers: string[] | null = null
+  let lineNo = 0
+  const byKey = new Map<string, BuildingClassificationAccumulator>()
+  const searchLower = search?.trim().toLowerCase()
+
+  for await (const rawLine of lines) {
+    const line = rawLine.trim()
+    if (!line) continue
+    lineNo += 1
+
+    if (headers == null) {
+      headers = parseCsvLine(line).map((header) => header.trim())
+      if (headers.indexOf('LOCATION_ID') < 0) {
+        throw new Error('Not a location/building data file (missing LOCATION_ID column).')
+      }
+      if (headers.indexOf('LOCATION_CLASSIFICATION') < 0) {
+        throw new Error(
+          'Not a location/building data file (missing LOCATION_CLASSIFICATION column). Choose a location_current_*.csv file.',
+        )
+      }
+      continue
+    }
+
+    const parsed = parseCsvLine(line)
+    const record: Record<string, string> = {}
+    headers.forEach((header, index) => {
+      record[header] = parsed[index] ?? ''
+    })
+
+    const rawName = cell(record, 'LOCATION_CLASSIFICATION')?.trim()
+    if (!rawName) continue
+
+    const key = rawName.toLowerCase()
+    const existing = byKey.get(key)
+    if (existing) {
+      existing.occurrenceCount += 1
+      continue
+    }
+
+    byKey.set(key, {
+      name: rawName,
+      sourceRow: lineNo,
+      occurrenceCount: 1,
+    })
+  }
+
+  let rows = [...byKey.values()].map((entry) => ({
+    sourceRow: entry.sourceRow,
+    name: entry.name,
+    occurrenceCount: entry.occurrenceCount,
+  }))
+
+  if (searchLower) {
+    rows = rows.filter((row) => includesIgnoreCase(row.name, searchLower))
+  }
+
+  rows.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+
+  return { rows, fileSizeBytes: stat.size }
+}
+
+interface BuildingClassificationDataFilePageResult {
+  rows: DataFileBuildingClassificationRow[]
+  offset: number
+  limit: number
+  hasMore: boolean
+  fileSizeBytes: number
+}
+
+async function readBuildingClassificationDataFilePage(
+  filePath: string,
+  criteria: BuildingClassificationDataFileListCriteria = {},
+): Promise<BuildingClassificationDataFilePageResult> {
+  const offset = Math.max(0, Math.floor(criteria.offset ?? 0))
+  const limit = Math.min(
+    MAX_SPACE_DATA_FILE_PAGE_SIZE,
+    Math.max(1, Math.floor(criteria.limit ?? DEFAULT_SPACE_DATA_FILE_PAGE_SIZE)),
+  )
+
+  const { rows: allRows, fileSizeBytes } =
+    await collectBuildingClassificationsFromLocationFile(filePath, criteria.search)
+
+  const rows = allRows.slice(offset, offset + limit)
+  const hasMore = offset + limit < allRows.length
+
+  return { rows, offset, limit, hasMore, fileSizeBytes }
+}
+
+interface CountryDataFileListCriteria {
+  offset?: number
+  limit?: number
+  search?: string
+}
+
+interface DataFileCountryRow {
+  sourceRow: number
+  country: string
+  iso2?: string
+  iso3?: string
+  nikeRegion?: string
+  nikeTerritory?: string
+  occurrenceCount: number
+}
+
+interface CountryAccumulator {
+  country: string
+  iso2?: string
+  iso3?: string
+  nikeRegion?: string
+  nikeTerritory?: string
+  sourceRow: number
+  occurrenceCount: number
+}
+
+function countryDedupeKey(
+  country: string | undefined,
+  iso2: string | undefined,
+  iso3: string | undefined,
+): string | undefined {
+  const i2 = iso2?.trim()
+  if (i2) return `iso2:${i2.toLowerCase()}`
+  const i3 = iso3?.trim()
+  if (i3) return `iso3:${i3.toLowerCase()}`
+  const name = country?.trim()
+  if (name) return `country:${name.toLowerCase()}`
+  return undefined
+}
+
+function rowMatchesCountrySearch(row: DataFileCountryRow, searchLower: string): boolean {
+  return (
+    includesIgnoreCase(row.country, searchLower) ||
+    includesIgnoreCase(row.iso2, searchLower) ||
+    includesIgnoreCase(row.iso3, searchLower) ||
+    includesIgnoreCase(row.nikeRegion, searchLower) ||
+    includesIgnoreCase(row.nikeTerritory, searchLower)
+  )
+}
+
+async function collectCountriesFromLocationFile(
+  filePath: string,
+  search?: string,
+): Promise<{ rows: DataFileCountryRow[]; fileSizeBytes: number }> {
+  const stat = await fs.stat(filePath)
+  const stream = createReadStream(filePath, { encoding: 'utf8' })
+  const lines = createInterface({ input: stream, crlfDelay: Infinity })
+
+  let headers: string[] | null = null
+  let lineNo = 0
+  const byKey = new Map<string, CountryAccumulator>()
+  const searchLower = search?.trim().toLowerCase()
+
+  for await (const rawLine of lines) {
+    const line = rawLine.trim()
+    if (!line) continue
+    lineNo += 1
+
+    if (headers == null) {
+      headers = parseCsvLine(line).map((header) => header.trim())
+      if (headers.indexOf('LOCATION_ID') < 0) {
+        throw new Error('Not a location/building data file (missing LOCATION_ID column).')
+      }
+      if (headers.indexOf('COUNTRY') < 0) {
+        throw new Error(
+          'Not a location/building data file (missing COUNTRY column). Choose a location_current_*.csv file.',
+        )
+      }
+      continue
+    }
+
+    const parsed = parseCsvLine(line)
+    const record: Record<string, string> = {}
+    headers.forEach((header, index) => {
+      record[header] = parsed[index] ?? ''
+    })
+
+    const country = cell(record, 'COUNTRY')?.trim()
+    const iso2 = cell(record, 'COUNTRY_ISO2_CD')?.trim()
+    const iso3 = cell(record, 'COUNTRY_ISO3_CD')?.trim()
+    const nikeRegion = cell(record, 'NIKE_REGION')?.trim()
+    const nikeTerritory = cell(record, 'NIKE_TERRITORY')?.trim()
+    if (!country && !iso2 && !iso3) continue
+
+    const key = countryDedupeKey(country, iso2, iso3)
+    if (!key) continue
+
+    const existing = byKey.get(key)
+    if (existing) {
+      existing.occurrenceCount += 1
+      continue
+    }
+
+    byKey.set(key, {
+      country: country ?? iso2 ?? iso3 ?? '',
+      iso2: iso2 || undefined,
+      iso3: iso3 || undefined,
+      nikeRegion: nikeRegion || undefined,
+      nikeTerritory: nikeTerritory || undefined,
+      sourceRow: lineNo,
+      occurrenceCount: 1,
+    })
+  }
+
+  let rows = [...byKey.values()].map((entry) => ({
+    sourceRow: entry.sourceRow,
+    country: entry.country,
+    iso2: entry.iso2,
+    iso3: entry.iso3,
+    nikeRegion: entry.nikeRegion,
+    nikeTerritory: entry.nikeTerritory,
+    occurrenceCount: entry.occurrenceCount,
+  }))
+
+  if (searchLower) {
+    rows = rows.filter((row) => rowMatchesCountrySearch(row, searchLower))
+  }
+
+  rows.sort((a, b) =>
+    a.country.localeCompare(b.country, undefined, { sensitivity: 'base' }),
+  )
+
+  return { rows, fileSizeBytes: stat.size }
+}
+
+interface CountryDataFilePageResult {
+  rows: DataFileCountryRow[]
+  offset: number
+  limit: number
+  hasMore: boolean
+  fileSizeBytes: number
+}
+
+async function readCountryDataFilePage(
+  filePath: string,
+  criteria: CountryDataFileListCriteria = {},
+): Promise<CountryDataFilePageResult> {
+  const offset = Math.max(0, Math.floor(criteria.offset ?? 0))
+  const limit = Math.min(
+    MAX_SPACE_DATA_FILE_PAGE_SIZE,
+    Math.max(1, Math.floor(criteria.limit ?? DEFAULT_SPACE_DATA_FILE_PAGE_SIZE)),
+  )
+
+  const { rows: allRows, fileSizeBytes } = await collectCountriesFromLocationFile(
+    filePath,
+    criteria.search,
+  )
+
+  const rows = allRows.slice(offset, offset + limit)
+  const hasMore = offset + limit < allRows.length
+
+  return { rows, offset, limit, hasMore, fileSizeBytes }
 }
 
 ipcMain.handle(
@@ -878,7 +1398,7 @@ ipcMain.handle(
           : files[0]
 
       if (!selected) {
-        return { ok: false, error: 'No uploaded Location data file found.' }
+        return { ok: false, error: 'No uploaded buildings data file found.' }
       }
 
       const dir = dataFileDir('location')
@@ -895,6 +1415,505 @@ ipcMain.handle(
         limit: page.limit,
         hasMore: page.hasMore,
         fileSizeBytes: page.fileSizeBytes,
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Read failed'
+      return { ok: false, error: message }
+    }
+  },
+)
+
+ipcMain.handle(
+  'files:listDataFileNikeRegions',
+  async (
+    _event,
+    criteria: unknown,
+    fileName?: unknown,
+  ): Promise<
+    | {
+        ok: true
+        sourceFile: string
+        rows: DataFileNikeRegionRow[]
+        offset: number
+        limit: number
+        hasMore: boolean
+        fileSizeBytes: number
+      }
+    | { ok: false; error: string }
+  > => {
+    if (!criteria || typeof criteria !== 'object') {
+      return { ok: false, error: 'Invalid match criteria.' }
+    }
+    if (fileName !== undefined && typeof fileName !== 'string') {
+      return { ok: false, error: 'Invalid file name.' }
+    }
+    if (
+      typeof fileName === 'string' &&
+      !VALID_DATA_FILE_NAME_RE.test(fileName)
+    ) {
+      return { ok: false, error: 'Invalid file name.' }
+    }
+
+    const parsedCriteria = criteria as NikeRegionDataFileListCriteria
+    try {
+      const files = await listDataFileEntries('location')
+      const selected =
+        typeof fileName === 'string'
+          ? files.find((file) => file.name === fileName)
+          : files[0]
+
+      if (!selected) {
+        return { ok: false, error: 'No uploaded buildings data file found.' }
+      }
+
+      const dir = dataFileDir('location')
+      if (!isInsideDir(selected.path, dir)) {
+        return { ok: false, error: 'Refused to read outside module data directory.' }
+      }
+
+      const page = await readNikeRegionDataFilePage(selected.path, parsedCriteria)
+      return {
+        ok: true,
+        sourceFile: selected.name,
+        rows: page.rows,
+        offset: page.offset,
+        limit: page.limit,
+        hasMore: page.hasMore,
+        fileSizeBytes: page.fileSizeBytes,
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Read failed'
+      return { ok: false, error: message }
+    }
+  },
+)
+
+ipcMain.handle(
+  'files:listDataFileNikeTerritories',
+  async (
+    _event,
+    criteria: unknown,
+    fileName?: unknown,
+  ): Promise<
+    | {
+        ok: true
+        sourceFile: string
+        rows: DataFileNikeTerritoryRow[]
+        offset: number
+        limit: number
+        hasMore: boolean
+        fileSizeBytes: number
+      }
+    | { ok: false; error: string }
+  > => {
+    if (!criteria || typeof criteria !== 'object') {
+      return { ok: false, error: 'Invalid match criteria.' }
+    }
+    if (fileName !== undefined && typeof fileName !== 'string') {
+      return { ok: false, error: 'Invalid file name.' }
+    }
+    if (
+      typeof fileName === 'string' &&
+      !VALID_DATA_FILE_NAME_RE.test(fileName)
+    ) {
+      return { ok: false, error: 'Invalid file name.' }
+    }
+
+    const parsedCriteria = criteria as NikeTerritoryDataFileListCriteria
+    try {
+      const files = await listDataFileEntries('location')
+      const selected =
+        typeof fileName === 'string'
+          ? files.find((file) => file.name === fileName)
+          : files[0]
+
+      if (!selected) {
+        return { ok: false, error: 'No uploaded buildings data file found.' }
+      }
+
+      const dir = dataFileDir('location')
+      if (!isInsideDir(selected.path, dir)) {
+        return { ok: false, error: 'Refused to read outside module data directory.' }
+      }
+
+      const page = await readNikeTerritoryDataFilePage(selected.path, parsedCriteria)
+      return {
+        ok: true,
+        sourceFile: selected.name,
+        rows: page.rows,
+        offset: page.offset,
+        limit: page.limit,
+        hasMore: page.hasMore,
+        fileSizeBytes: page.fileSizeBytes,
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Read failed'
+      return { ok: false, error: message }
+    }
+  },
+)
+
+ipcMain.handle(
+  'files:listDataFileBuildingClassifications',
+  async (
+    _event,
+    criteria: unknown,
+    fileName?: unknown,
+  ): Promise<
+    | {
+        ok: true
+        sourceFile: string
+        rows: DataFileBuildingClassificationRow[]
+        offset: number
+        limit: number
+        hasMore: boolean
+        fileSizeBytes: number
+      }
+    | { ok: false; error: string }
+  > => {
+    if (!criteria || typeof criteria !== 'object') {
+      return { ok: false, error: 'Invalid match criteria.' }
+    }
+    if (fileName !== undefined && typeof fileName !== 'string') {
+      return { ok: false, error: 'Invalid file name.' }
+    }
+    if (
+      typeof fileName === 'string' &&
+      !VALID_DATA_FILE_NAME_RE.test(fileName)
+    ) {
+      return { ok: false, error: 'Invalid file name.' }
+    }
+
+    const parsedCriteria = criteria as BuildingClassificationDataFileListCriteria
+    try {
+      const files = await listDataFileEntries('location')
+      const selected =
+        typeof fileName === 'string'
+          ? files.find((file) => file.name === fileName)
+          : files[0]
+
+      if (!selected) {
+        return { ok: false, error: 'No uploaded buildings data file found.' }
+      }
+
+      const dir = dataFileDir('location')
+      if (!isInsideDir(selected.path, dir)) {
+        return { ok: false, error: 'Refused to read outside module data directory.' }
+      }
+
+      const page = await readBuildingClassificationDataFilePage(
+        selected.path,
+        parsedCriteria,
+      )
+      return {
+        ok: true,
+        sourceFile: selected.name,
+        rows: page.rows,
+        offset: page.offset,
+        limit: page.limit,
+        hasMore: page.hasMore,
+        fileSizeBytes: page.fileSizeBytes,
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Read failed'
+      return { ok: false, error: message }
+    }
+  },
+)
+
+ipcMain.handle(
+  'files:listDataFileCountries',
+  async (
+    _event,
+    criteria: unknown,
+    fileName?: unknown,
+  ): Promise<
+    | {
+        ok: true
+        sourceFile: string
+        rows: DataFileCountryRow[]
+        offset: number
+        limit: number
+        hasMore: boolean
+        fileSizeBytes: number
+      }
+    | { ok: false; error: string }
+  > => {
+    if (!criteria || typeof criteria !== 'object') {
+      return { ok: false, error: 'Invalid match criteria.' }
+    }
+    if (fileName !== undefined && typeof fileName !== 'string') {
+      return { ok: false, error: 'Invalid file name.' }
+    }
+    if (
+      typeof fileName === 'string' &&
+      !VALID_DATA_FILE_NAME_RE.test(fileName)
+    ) {
+      return { ok: false, error: 'Invalid file name.' }
+    }
+
+    const parsedCriteria = criteria as CountryDataFileListCriteria
+    try {
+      const files = await listDataFileEntries('location')
+      const selected =
+        typeof fileName === 'string'
+          ? files.find((file) => file.name === fileName)
+          : files[0]
+
+      if (!selected) {
+        return { ok: false, error: 'No uploaded buildings data file found.' }
+      }
+
+      const dir = dataFileDir('location')
+      if (!isInsideDir(selected.path, dir)) {
+        return { ok: false, error: 'Refused to read outside module data directory.' }
+      }
+
+      const page = await readCountryDataFilePage(selected.path, parsedCriteria)
+      return {
+        ok: true,
+        sourceFile: selected.name,
+        rows: page.rows,
+        offset: page.offset,
+        limit: page.limit,
+        hasMore: page.hasMore,
+        fileSizeBytes: page.fileSizeBytes,
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Read failed'
+      return { ok: false, error: message }
+    }
+  },
+)
+
+interface StateDataFileListCriteria {
+  offset?: number
+  limit?: number
+  search?: string
+  country?: string
+}
+
+interface DataFileStateRow {
+  sourceRow: number
+  name: string
+  country: string
+  city?: string
+  occurrenceCount: number
+}
+
+interface StateAccumulator {
+  name: string
+  country: string
+  city?: string
+  sourceRow: number
+  occurrenceCount: number
+}
+
+function stateDedupeKey(
+  name: string | undefined,
+  country: string | undefined,
+): string | undefined {
+  const stateName = name?.trim()
+  const countryName = country?.trim()
+  if (!stateName || !countryName) return undefined
+  return `state:${stateName.toLowerCase()}|country:${countryName.toLowerCase()}`
+}
+
+function rowMatchesStateSearch(row: DataFileStateRow, searchLower: string): boolean {
+  return (
+    includesIgnoreCase(row.name, searchLower) ||
+    includesIgnoreCase(row.country, searchLower) ||
+    includesIgnoreCase(row.city, searchLower)
+  )
+}
+
+async function collectStatesFromLocationFile(
+  filePath: string,
+  criteria: StateDataFileListCriteria = {},
+): Promise<{ rows: DataFileStateRow[]; fileSizeBytes: number }> {
+  const stat = await fs.stat(filePath)
+  const stream = createReadStream(filePath, { encoding: 'utf8' })
+  const lines = createInterface({ input: stream, crlfDelay: Infinity })
+
+  let headers: string[] | null = null
+  let lineNo = 0
+  const byKey = new Map<string, StateAccumulator>()
+  const searchLower = criteria.search?.trim().toLowerCase()
+  const countryFilterLower = criteria.country?.trim().toLowerCase()
+
+  for await (const rawLine of lines) {
+    const line = rawLine.trim()
+    if (!line) continue
+    lineNo += 1
+
+    if (headers == null) {
+      headers = parseCsvLine(line).map((header) => header.trim())
+      if (headers.indexOf('LOCATION_ID') < 0) {
+        throw new Error('Not a location/building data file (missing LOCATION_ID column).')
+      }
+      if (headers.indexOf('STATE') < 0) {
+        throw new Error(
+          'Not a location/building data file (missing STATE column). Choose a location_current_*.csv file.',
+        )
+      }
+      if (headers.indexOf('COUNTRY') < 0) {
+        throw new Error(
+          'Not a location/building data file (missing COUNTRY column). Choose a location_current_*.csv file.',
+        )
+      }
+      continue
+    }
+
+    const parsed = parseCsvLine(line)
+    const record: Record<string, string> = {}
+    headers.forEach((header, index) => {
+      record[header] = parsed[index] ?? ''
+    })
+
+    const name = cell(record, 'STATE')?.trim()
+    const country = cell(record, 'COUNTRY')?.trim()
+    const city = cell(record, 'CITY')?.trim()
+    if (!name || !country) continue
+
+    const key = stateDedupeKey(name, country)
+    if (!key) continue
+
+    const existing = byKey.get(key)
+    if (existing) {
+      existing.occurrenceCount += 1
+      if (!existing.city && city) existing.city = city
+      continue
+    }
+
+    byKey.set(key, {
+      name,
+      country,
+      city: city || undefined,
+      sourceRow: lineNo,
+      occurrenceCount: 1,
+    })
+  }
+
+  let rows = [...byKey.values()].map((entry) => ({
+    sourceRow: entry.sourceRow,
+    name: entry.name,
+    country: entry.country,
+    city: entry.city,
+    occurrenceCount: entry.occurrenceCount,
+  }))
+
+  if (countryFilterLower) {
+    rows = rows.filter((row) =>
+      includesIgnoreCase(row.country, countryFilterLower),
+    )
+  }
+
+  if (searchLower) {
+    rows = rows.filter((row) => rowMatchesStateSearch(row, searchLower))
+  }
+
+  rows.sort((a, b) => {
+    const countryCmp = a.country.localeCompare(b.country, undefined, {
+      sensitivity: 'base',
+    })
+    if (countryCmp !== 0) return countryCmp
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  })
+
+  return { rows, fileSizeBytes: stat.size }
+}
+
+interface StateDataFilePageResult {
+  rows: DataFileStateRow[]
+  offset: number
+  limit: number
+  hasMore: boolean
+  fileSizeBytes: number
+  /** Total rows after dedupe and filters (before paging). */
+  totalCount: number
+}
+
+async function readStateDataFilePage(
+  filePath: string,
+  criteria: StateDataFileListCriteria = {},
+): Promise<StateDataFilePageResult> {
+  const offset = Math.max(0, Math.floor(criteria.offset ?? 0))
+  const limit = Math.min(
+    MAX_SPACE_DATA_FILE_PAGE_SIZE,
+    Math.max(1, Math.floor(criteria.limit ?? DEFAULT_SPACE_DATA_FILE_PAGE_SIZE)),
+  )
+
+  const { rows: allRows, fileSizeBytes } = await collectStatesFromLocationFile(
+    filePath,
+    criteria,
+  )
+
+  const totalCount = allRows.length
+  const rows = allRows.slice(offset, offset + limit)
+  const hasMore = offset + limit < totalCount
+
+  return { rows, offset, limit, hasMore, fileSizeBytes, totalCount }
+}
+
+ipcMain.handle(
+  'files:listDataFileStates',
+  async (
+    _event,
+    criteria: unknown,
+    fileName?: unknown,
+  ): Promise<
+    | {
+        ok: true
+        sourceFile: string
+        rows: DataFileStateRow[]
+        offset: number
+        limit: number
+        hasMore: boolean
+        fileSizeBytes: number
+        totalCount: number
+      }
+    | { ok: false; error: string }
+  > => {
+    if (!criteria || typeof criteria !== 'object') {
+      return { ok: false, error: 'Invalid match criteria.' }
+    }
+    if (fileName !== undefined && typeof fileName !== 'string') {
+      return { ok: false, error: 'Invalid file name.' }
+    }
+    if (
+      typeof fileName === 'string' &&
+      !VALID_DATA_FILE_NAME_RE.test(fileName)
+    ) {
+      return { ok: false, error: 'Invalid file name.' }
+    }
+
+    const parsedCriteria = criteria as StateDataFileListCriteria
+    try {
+      const files = await listDataFileEntries('location')
+      const selected =
+        typeof fileName === 'string'
+          ? files.find((file) => file.name === fileName)
+          : files[0]
+
+      if (!selected) {
+        return { ok: false, error: 'No uploaded buildings data file found.' }
+      }
+
+      const dir = dataFileDir('location')
+      if (!isInsideDir(selected.path, dir)) {
+        return { ok: false, error: 'Refused to read outside module data directory.' }
+      }
+
+      const page = await readStateDataFilePage(selected.path, parsedCriteria)
+      return {
+        ok: true,
+        sourceFile: selected.name,
+        rows: page.rows,
+        offset: page.offset,
+        limit: page.limit,
+        hasMore: page.hasMore,
+        fileSizeBytes: page.fileSizeBytes,
+        totalCount: page.totalCount,
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Read failed'

@@ -110,6 +110,67 @@ export function displayFieldMetaForConfigKey(
   }
 }
 
+export interface LinkFieldWriteResolveOptions {
+  configuredAirtableName?: string
+  /** Expected linked table id (from module tables.ts). */
+  linkedTableId?: string
+  /** Writable link field id when config column is a lookup, not the link. */
+  linkFieldId?: string
+}
+
+/** Resolve the writable link column for create/update payloads. */
+export function linkFieldMetaForWriteTarget(
+  table: MetaTableSchema,
+  configKey: string,
+  options: LinkFieldWriteResolveOptions = {},
+): DisplayFieldMeta | undefined {
+  const { configuredAirtableName, linkedTableId, linkFieldId } = options
+
+  if (linkFieldId) {
+    const byId = linkFieldById(table, linkFieldId)
+    if (byId) {
+      const id = (byId.options as { linkedTableId?: string } | undefined)?.linkedTableId
+      if (id) {
+        return {
+          linkField: byId,
+          linkedTableId: id,
+          lookupFields: lookupFieldsForLink(table, byId),
+        }
+      }
+    }
+  }
+
+  const byConfig = displayFieldMetaForConfigKey(
+    table,
+    configKey,
+    configuredAirtableName,
+  )
+  if (
+    byConfig &&
+    (!linkedTableId || byConfig.linkedTableId === linkedTableId)
+  ) {
+    return byConfig
+  }
+
+  if (linkedTableId) {
+    const linkField = table.fields.find((field) => {
+      if (!isLinkFieldType(field.type)) return false
+      const id = (field.options as { linkedTableId?: string } | undefined)
+        ?.linkedTableId
+      return id === linkedTableId
+    })
+    if (linkField) {
+      return {
+        linkField,
+        linkedTableId,
+        lookupFields: lookupFieldsForLink(table, linkField),
+      }
+    }
+  }
+
+  return byConfig
+}
+
 /** @deprecated Use {@link displayFieldMetaForConfigKey} */
 export function linkFieldMetaForConfigKey(
   table: MetaTableSchema,

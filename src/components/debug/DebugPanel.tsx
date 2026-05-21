@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import Drawer from '@mui/material/Drawer'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
@@ -20,6 +21,7 @@ import Switch from '@mui/material/Switch'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import CloseIcon from '@mui/icons-material/Close'
 import { useDebug } from '../../context/DebugContext.tsx'
+import { clearAirtableDataCache } from '../../lib/airtable/cache/airtableDataCache.ts'
 import { formatFrameLocation } from '../../lib/debug/errorLocation.ts'
 import { formatErrorEntryForCopy } from '../../lib/debug/errorDebugUtils.ts'
 import {
@@ -30,6 +32,7 @@ import {
 } from '../../lib/debug/networkDebugUtils.ts'
 import { formatRateLimitSummary } from '../../lib/debug/rateLimitHeaders.ts'
 import { CopyDebugButton } from './CopyDebugButton.tsx'
+import { DebugCacheTab } from './DebugCacheTab.tsx'
 import type {
   DebugErrorEntry,
   DebugHttpPart,
@@ -548,9 +551,12 @@ export function DebugPanel() {
     clearOnNavigate,
     setClearOnNavigate,
   } = useDebug()
+  const queryClient = useQueryClient()
   const [tab, setTab] = useState(0)
   const [urlFilter, setUrlFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<NetworkStatusFilter>('all')
+  const [cacheRevision, setCacheRevision] = useState(0)
+  const bumpCacheRevision = () => setCacheRevision((n) => n + 1)
 
   const filteredNetwork = useMemo(
     () => filterNetworkEntries(snapshot.network, urlFilter, statusFilter),
@@ -568,7 +574,12 @@ export function DebugPanel() {
   const handleClear = () => {
     if (tab === 0) clearNetwork()
     else if (tab === 1) clearErrors()
-    else refreshPerf()
+    else if (tab === 2) refreshPerf()
+    else {
+      clearAirtableDataCache()
+      queryClient.clear()
+      bumpCacheRevision()
+    }
   }
 
   return (
@@ -579,7 +590,8 @@ export function DebugPanel() {
       slotProps={{
         paper: {
           sx: {
-            height: { xs: '70vh', sm: 420 },
+            height: { xs: '85vh', sm: '80vh' },
+            maxHeight: '95vh',
             borderTopLeftRadius: 12,
             borderTopRightRadius: 12,
             display: 'flex',
@@ -626,6 +638,11 @@ export function DebugPanel() {
             Refresh
           </Button>
         ) : null}
+        {tab === 3 ? (
+          <Button size="small" onClick={bumpCacheRevision}>
+            Refresh
+          </Button>
+        ) : null}
         <IconButton size="small" onClick={() => setOpen(false)} aria-label="Close debug panel">
           <CloseIcon fontSize="small" />
         </IconButton>
@@ -643,6 +660,7 @@ export function DebugPanel() {
           sx={{ minHeight: 40, fontSize: '0.75rem' }}
         />
         <Tab label="Performance" sx={{ minHeight: 40, fontSize: '0.75rem' }} />
+        <Tab label="Cache" sx={{ minHeight: 40, fontSize: '0.75rem' }} />
       </Tabs>
 
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
@@ -658,6 +676,9 @@ export function DebugPanel() {
         ) : null}
         {tab === 1 ? <ErrorList items={snapshot.errors} /> : null}
         {tab === 2 ? <PerfList items={snapshot.perf} /> : null}
+        {tab === 3 ? (
+          <DebugCacheTab revision={cacheRevision} onRevisionChange={bumpCacheRevision} />
+        ) : null}
       </Box>
     </Drawer>
   )

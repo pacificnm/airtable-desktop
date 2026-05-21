@@ -1,3 +1,4 @@
+import { buildCacheEntrySnapshot, type CacheEntrySnapshot } from './cacheEntrySnapshot.ts'
 import { CACHE_TTL_MS } from './cacheTtl.ts'
 import {
   linkedLabelsCacheKey,
@@ -5,6 +6,9 @@ import {
   recordCacheKey,
   schemaCacheKey,
 } from './cacheKeys.ts'
+
+export type { CacheEntryKind, CacheEntrySnapshot } from './cacheEntrySnapshot.ts'
+export { parseCacheKey } from './cacheEntrySnapshot.ts'
 import type { ListRecordsQuery } from '../types.ts'
 import type { BaseSchemaResponse } from '../metaTypes.ts'
 import type { ListRecordsResponse } from '../types.ts'
@@ -133,6 +137,26 @@ export class AirtableDataCache {
     }
   }
 
+  /** All in-memory entries (including expired) for debug / inspection. */
+  listEntrySnapshots(now = Date.now()): CacheEntrySnapshot[] {
+    const snapshots: CacheEntrySnapshot[] = []
+    for (const [key, entry] of this.memory) {
+      snapshots.push(buildCacheEntrySnapshot(key, entry.expiresAt, entry.data, now))
+    }
+    return snapshots.sort((a, b) => a.expiresAt - b.expiresAt)
+  }
+
+  entryCount(): number {
+    return this.memory.size
+  }
+
+  /** Debug-only read of stored payload (includes expired entries; does not evict). */
+  peekEntryRaw(key: string): { data: unknown; expiresAt: number } | undefined {
+    const entry = this.memory.get(key)
+    if (!entry) return undefined
+    return { data: entry.data, expiresAt: entry.expiresAt }
+  }
+
   /** Drop list + record entries for one table (after mutations). */
   clearTable(tableId: string): void {
     const prefixes = [`list:${tableId}:`, `record:${tableId}:`, `linkedLabels:${tableId}:`]
@@ -232,4 +256,13 @@ export function clearAirtableDataCache(baseId?: string): void {
 
 export function clearAirtableTableCache(baseId: string, tableId: string): void {
   getAirtableDataCache(baseId).clearTable(tableId)
+}
+
+/** Base ids with a loaded {@link AirtableDataCache} instance (memory). */
+export function listLoadedAirtableDataCacheBaseIds(): string[] {
+  return [...cacheByBase.keys()]
+}
+
+export function deleteAirtableDataCacheEntry(baseId: string, key: string): void {
+  cacheByBase.get(baseId)?.delete(key)
 }

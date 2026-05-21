@@ -152,7 +152,7 @@ export default myModule`}</DocPre>
       </DocParagraph>
       <DocPre>{`menuNav: {
   groups: [
-    { id: 'location', label: 'Location', scope: 'global', order: 20 },
+    { id: 'location', label: 'Buildings', scope: 'global', order: 20 },
     { id: 'reference', label: 'Reference data', scope: 'global', order: 200 },
   ],
 },

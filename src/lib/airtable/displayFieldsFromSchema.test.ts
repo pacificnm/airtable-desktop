@@ -3,6 +3,7 @@ import {
   collectRecordIdsForDisplayMeta,
   displayFieldMetaForConfigKey,
   displayFieldOverridesForTable,
+  linkFieldMetaForWriteTarget,
   rawDisplayValuesForMeta,
 } from './displayFieldsFromSchema.ts'
 import type { MetaTableSchema } from './metaTypes.ts'
@@ -53,6 +54,18 @@ describe('displayFieldOverridesForTable', () => {
   it('maps region to Region lookup when link is named Regions', () => {
     const overrides = displayFieldOverridesForTable(buildingTable, ['region'])
     expect(overrides.region).toBe('Region')
+  })
+})
+
+describe('linkFieldMetaForWriteTarget', () => {
+  it('prefers linkFieldId over tables.ts lookup column name', () => {
+    const meta = linkFieldMetaForWriteTarget(buildingTable, 'region', {
+      configuredAirtableName: 'Region',
+      linkedTableId: 'tblRegion',
+      linkFieldId: 'fldRegionLink',
+    })
+    expect(meta?.linkField.id).toBe('fldRegionLink')
+    expect(meta?.linkField.name).toBe('Regions')
   })
 })
 

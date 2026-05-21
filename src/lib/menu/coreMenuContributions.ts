@@ -60,6 +60,14 @@ export const coreMenuItems = [
     placements: [{ surface: 'electron', menu: 'developer', order: 15 }],
   },
   {
+    id: 'data-file-mappings',
+    label: 'Data file mappings',
+    viewId: 'devDataFileMappings',
+    icon: 'tableChart',
+    order: 25,
+    placements: [{ surface: 'electron', menu: 'developer', order: 25 }],
+  },
+  {
     id: 'docs',
     label: 'Documentation',
     viewId: 'devDocs',

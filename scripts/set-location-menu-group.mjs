@@ -1,10 +1,10 @@
 /**
- * Assign building + geo modules to the global "Location" drawer section.
+ * Assign building + geo modules to the global "Buildings" drawer section.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-/** module folder → menu item order within Location section */
+/** module folder → menu item order within Buildings section */
 const LOCATION_MODULES = {
   location: 0,
   space: 10,
@@ -19,7 +19,7 @@ const LOCATION_MODULES = {
 }
 
 const menuNavBlock = `  menuNav: {
-    groups: [{ id: 'location', label: 'Location', scope: 'global', order: 20 }],
+    groups: [{ id: 'location', label: 'Buildings', scope: 'global', order: 20 }],
   },`
 
 for (const [moduleId, itemOrder] of Object.entries(LOCATION_MODULES)) {
