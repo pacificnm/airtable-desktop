@@ -546,6 +546,7 @@ interface DataFileBuildingRow {
   nikeTerritory?: string
   locationStatus?: string
   classification?: string
+  campus?: string
   brand?: string
   group?: string
   use?: string
@@ -576,6 +577,7 @@ function dataFileBuildingRow(
     nikeTerritory: cell(row, 'NIKE_TERRITORY'),
     locationStatus: cell(row, 'LOCATION_STATUS'),
     classification: cell(row, 'LOCATION_CLASSIFICATION'),
+    campus: cell(row, 'LOCATION_CAMPUS') ?? cell(row, 'CAMPUS'),
     brand: cell(row, 'LOCATION_BRAND'),
     group: cell(row, 'LOCATION_GROUP'),
     use: cell(row, 'LOCATION_USE'),

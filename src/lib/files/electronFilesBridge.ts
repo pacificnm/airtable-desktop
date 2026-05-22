@@ -105,6 +105,7 @@ export interface DataFileBuildingRow {
   nikeTerritory?: string
   locationStatus?: string
   classification?: string
+  campus?: string
   brand?: string
   group?: string
   use?: string

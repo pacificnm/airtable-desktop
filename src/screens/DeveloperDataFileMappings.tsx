@@ -165,7 +165,6 @@ export default function DeveloperDataFileMappings() {
           <DataFileSyncCoveragePanel
             mapping={selected.mapping}
             coverage={coverage}
-            defaultExpanded
             sourcePath={selected.sourcePath}
           />
         </Stack>

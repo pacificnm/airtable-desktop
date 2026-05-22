@@ -20,7 +20,10 @@ export interface RecordListPageProps {
   /** When set with `onViewModeChange`, shows grid/card toggle beside header actions. */
   viewMode?: RecordViewMode
   onViewModeChange?: (mode: RecordViewMode) => void
-  /** Optional footer below the records (typically a `TablePager`). */
+  /**
+   * Pagination footer below the table — use `TablePager` (same bar as
+   * {@link PaginatedDataTable}). Do not put the pager inside the table container.
+   */
   footer?: ReactNode
 }
 

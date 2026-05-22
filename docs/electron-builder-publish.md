@@ -68,6 +68,40 @@ win:
 
 Provide `CSC_LINK` (`.pfx`) and `CSC_KEY_PASSWORD` in CI. Unsigned builds run but trigger SmartScreen warnings.
 
+### Windows build failures (no admin / file locks)
+
+**1. `Cannot create symbolic link : A required privilege is not held by the client`**
+
+electron-builder downloads `winCodeSign` and 7-Zip tries to create symlinks inside the cache (`AppData\Local\electron-builder\Cache\winCodeSign\…`). That is **not** your app cert — it is tooling used when `win.signAndEditExecutable` is enabled (default).
+
+This repo sets `win.signAndEditExecutable: false` in `electron-builder.yml` so **unsigned** `npm run dist:win` works without admin. Alternatives if you re-enable executable editing/signing:
+
+- **Settings → System → For developers → Developer Mode** (allows symlinks without elevation), or
+- Run **one** build from an **elevated** PowerShell to populate the cache, or
+- Pre-extract [winCodeSign-2.6.0.7z](https://github.com/electron-userland/electron-builder-binaries/releases/download/winCodeSign-2.6.0/winCodeSign-2.6.0.7z) into the cache folder (see [electron-builder#8149](https://github.com/electron-userland/electron-builder/issues/8149)).
+
+When you ship **signed** builds (`CSC_LINK` set), you may set `signAndEditExecutable: true` again; ensure Developer Mode or a one-time elevated extract first.
+
+**2. `app.asar: The process cannot access the file because it is being used by another process`**
+
+Another process has the previous output open. Common causes:
+
+- **Cursor / VS Code** has a handle on `release\...\app.asar` (file watcher / indexer). Confirm with Sysinternals [Handle](https://learn.microsoft.com/en-us/sysinternals/downloads/handle): `handle64.exe app.asar`
+- **Airtable Desktop** still running from `release\win-unpacked\`
+- File Explorer preview on `release\`, or antivirus scanning the folder
+
+Fixes:
+
+1. **Reload the editor window** after pulling `.cursorignore` / `.vscode/settings.json` (excludes `release/` from watchers).
+2. **Build outside the repo** (works even while Cursor is open):
+
+   ```powershell
+   npm run dist:win:safe
+   ```
+
+   Installers go to `..\.airtable-desktop-release\` (sibling of the repo folder).
+3. Or quit the packed app, close Explorer on `release\`, delete `release\`, then `npm run dist:win`.
+
 ## Linux
 
 AppImage from `npm run dist:linux` is unsigned by default. Flathub / distro packaging is a separate pipeline.

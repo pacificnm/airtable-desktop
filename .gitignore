@@ -54,3 +54,8 @@ secrets.json
 
 # Optional local editor/agent state
 .cursor/
+
+# Electron builder output (never commit installers or unpacked apps)
+release/
+release-build-test/
+.airtable-desktop-release/

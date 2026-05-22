@@ -7,12 +7,19 @@ export type FormGridColumns = 1 | 2 | 3 | 4 | 6 | 8 | 10 | 12
 export interface FormGridProps {
   children: ReactNode
   spacing?: number
+  /** Render as a div when nested inside another form or FormSection. */
+  nested?: boolean
 }
 
 /** Responsive 12-column grid for drawer and detail forms. */
-export function FormGrid({ children, spacing = 2 }: FormGridProps) {
+export function FormGrid({ children, spacing = 2, nested = false }: FormGridProps) {
   return (
-    <Grid container spacing={spacing} component="form" noValidate>
+    <Grid
+      container
+      spacing={spacing}
+      component={nested ? 'div' : 'form'}
+      noValidate={!nested}
+    >
       {children}
     </Grid>
   )

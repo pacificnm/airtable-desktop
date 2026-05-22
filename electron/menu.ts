@@ -26,9 +26,16 @@ function navigate(view: string): () => void {
   return () => sendMenuAction(navigateMenuAction(view))
 }
 
+function formatPackageAuthor(author: string): string {
+  const trimmed = author.trim()
+  const match = /^([^<]+?)\s*<[^>]+>\s*$/.exec(trimmed)
+  return match ? match[1].trim() : trimmed
+}
+
 function readPackageMeta(): {
   name: string
   version: string
+  author?: string
   description?: string
   homepage?: string
 } {
@@ -38,15 +45,21 @@ function readPackageMeta(): {
       appName?: string
       name?: string
       version?: string
+      author?: string
       description?: string
       homepage?: string
     }
+    const author =
+      typeof pkg.author === 'string' && pkg.author.trim()
+        ? formatPackageAuthor(pkg.author)
+        : undefined
     return {
       name:
         typeof pkg.appName === 'string' && pkg.appName.length > 0
           ? pkg.appName
           : (pkg.name ?? 'Airtable Desktop'),
       version: pkg.version ?? '0.0.0',
+      author,
       description: pkg.description,
       homepage: pkg.homepage,
     }
@@ -63,10 +76,12 @@ export function showAboutDialog(parent?: BrowserWindow | null): void {
     meta.homepage,
   ].filter((line): line is string => Boolean(line && line.trim()))
 
+  const message = meta.author ? `${meta.name}\n${meta.author}` : meta.name
+
   const options: MessageBoxOptions = {
     type: 'info',
     title: `About ${meta.name}`,
-    message: meta.name,
+    message,
     detail: detailLines.join('\n\n'),
     buttons: ['OK'],
     defaultId: 0,

@@ -3,15 +3,15 @@
   "appName": "Airtable Desktop",
   "productName": "Airtable Desktop",
   "description": "Airtable Desktop",
-  "author": "Airtable",
+  "author": "Jaimie Garner <jaimie.garner@cbre.com>",
   "license": "MIT",
-  "homepage": "https://airtable.com",
+  "homepage": "https://github.com/pacificnm/airtable-desktop",
   "repository": {
     "type": "git",
     "url": ""
   },
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -26,6 +26,7 @@
     "dist:mac": "npm run build && electron-builder --mac zip",
     "dist:mac:dmg": "npm run build && electron-builder --mac dmg zip",
     "dist:win": "npm run build && electron-builder --win",
+    "dist:win:safe": "npm run build && electron-builder --win --config.directories.output=../.airtable-desktop-release",
     "dist:linux": "npm run build && electron-builder --linux",
     "test": "vitest",
     "test:run": "vitest run",

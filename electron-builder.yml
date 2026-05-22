@@ -37,6 +37,9 @@ dmg:
   sign: false
 
 win:
+  # Unsigned local/CI builds: avoids winCodeSign cache extract, which needs symlink
+  # privilege on Windows (Developer Mode or elevated terminal). Set true when CSC_* is set.
+  signAndEditExecutable: false
   target:
     - target: nsis
       arch:

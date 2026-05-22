@@ -99,7 +99,7 @@ export interface DataFileSyncCoveragePanelProps {
 export function DataFileSyncCoveragePanel({
   mapping,
   coverage,
-  defaultExpanded = true,
+  defaultExpanded = false,
   helperText,
   sourcePath,
 }: DataFileSyncCoveragePanelProps) {
