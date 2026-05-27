@@ -14,6 +14,8 @@ import { nikeRegionDataFileMapping } from '../../../module-repos/region/lib/nike
 import { nikeTerritoryDataFileMapping } from '../../../module-repos/region/lib/nikeTerritoryDataFileMapping.ts'
 import { regionModuleTables } from '../../../module-repos/region/tables.ts'
 import { regionModuleFieldsMeta } from '../../../module-repos/region/tables.meta.ts'
+import { cityDataFileMapping } from '../../../module-repos/city/lib/cityDataFileMapping.ts'
+import { cityModuleTables } from '../../../module-repos/city/tables.ts'
 import { stateDataFileMapping } from '../../../module-repos/state/lib/stateDataFileMapping.ts'
 import { stateModuleTables } from '../../../module-repos/state/tables.ts'
 import type { DataFileMapping } from './types.ts'
@@ -77,6 +79,13 @@ export const dataFileMappingRegistry: readonly DataFileMappingRegistryEntry[] = 
     sourcePath: 'module-repos/state/lib/stateDataFileMapping.ts',
     table: tableFrom(stateModuleTables, 'state')!,
     description: 'Unique STATE + COUNTRY pairs from the location CSV.',
+  },
+  {
+    moduleId: 'city',
+    mapping: cityDataFileMapping,
+    sourcePath: 'module-repos/city/lib/cityDataFileMapping.ts',
+    table: tableFrom(cityModuleTables, 'city')!,
+    description: 'Unique CITY + STATE + COUNTRY triples from the location CSV.',
   },
   {
     moduleId: 'buildingClassification',

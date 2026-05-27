@@ -269,6 +269,40 @@ export type ListDataFileStatesResult =
     }
   | { ok: false; error: string }
 
+export interface CityDataFileListCriteria {
+  offset?: number
+  limit?: number
+  /** Case-insensitive substring match on city, state, or country. */
+  search?: string
+  /** Exact match on COUNTRY column. */
+  country?: string
+  /** Exact match on STATE column. */
+  state?: string
+}
+
+export interface DataFileCityRow {
+  sourceRow: number
+  name: string
+  state: string
+  country: string
+  /** Number of location CSV rows for this city + state + country triple. */
+  occurrenceCount: number
+}
+
+export type ListDataFileCitiesResult =
+  | {
+      ok: true
+      sourceFile: string
+      rows: DataFileCityRow[]
+      offset: number
+      limit: number
+      hasMore: boolean
+      fileSizeBytes: number
+      /** Rows matching filters after dedupe (full file), before paging. */
+      totalCount: number
+    }
+  | { ok: false; error: string }
+
 export interface ElectronFilesBridge {
   importDataFile: (moduleId: string) => Promise<ImportDataFileResult>
   listDataFiles: (moduleId: string) => Promise<ListDataFilesResult>
@@ -304,6 +338,10 @@ export interface ElectronFilesBridge {
     criteria: StateDataFileListCriteria,
     fileName?: string,
   ) => Promise<ListDataFileStatesResult>
+  listDataFileCities: (
+    criteria: CityDataFileListCriteria,
+    fileName?: string,
+  ) => Promise<ListDataFileCitiesResult>
 }
 
 /**

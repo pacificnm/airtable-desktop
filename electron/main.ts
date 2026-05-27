@@ -7,6 +7,11 @@ import {
   DEFAULT_SPACE_DATA_FILE_PAGE_SIZE,
   MAX_SPACE_DATA_FILE_PAGE_SIZE,
 } from './dataFileLimits.js'
+import {
+  mergeCountryAccumulator,
+  normalizeCountryCsvIsoFields,
+  type CountryAccumulator,
+} from './countryCsvIso.js'
 import { fileURLToPath } from 'node:url'
 import { PRODUCTION_CSP } from './csp.js'
 import {
@@ -1054,16 +1059,6 @@ interface DataFileCountryRow {
   occurrenceCount: number
 }
 
-interface CountryAccumulator {
-  country: string
-  iso2?: string
-  iso3?: string
-  nikeRegion?: string
-  nikeTerritory?: string
-  sourceRow: number
-  occurrenceCount: number
-}
-
 function countryDedupeKey(
   country: string | undefined,
   iso2: string | undefined,
@@ -1125,26 +1120,37 @@ async function collectCountriesFromLocationFile(
       record[header] = parsed[index] ?? ''
     })
 
-    const country = cell(record, 'COUNTRY')?.trim()
-    const iso2 = cell(record, 'COUNTRY_ISO2_CD')?.trim()
-    const iso3 = cell(record, 'COUNTRY_ISO3_CD')?.trim()
+    const normalized = normalizeCountryCsvIsoFields(
+      cell(record, 'COUNTRY'),
+      cell(record, 'COUNTRY_ISO2_CD'),
+      cell(record, 'COUNTRY_ISO3_CD'),
+    )
     const nikeRegion = cell(record, 'NIKE_REGION')?.trim()
     const nikeTerritory = cell(record, 'NIKE_TERRITORY')?.trim()
-    if (!country && !iso2 && !iso3) continue
+    if (!normalized.country && !normalized.iso2 && !normalized.iso3) continue
 
-    const key = countryDedupeKey(country, iso2, iso3)
+    const key = countryDedupeKey(
+      normalized.country,
+      normalized.iso2,
+      normalized.iso3,
+    )
     if (!key) continue
 
     const existing = byKey.get(key)
     if (existing) {
-      existing.occurrenceCount += 1
+      mergeCountryAccumulator(existing, {
+        ...normalized,
+        nikeRegion: nikeRegion || undefined,
+        nikeTerritory: nikeTerritory || undefined,
+        sourceRow: lineNo,
+      })
       continue
     }
 
     byKey.set(key, {
-      country: country ?? iso2 ?? iso3 ?? '',
-      iso2: iso2 || undefined,
-      iso3: iso3 || undefined,
+      country: normalized.country,
+      iso2: normalized.iso2,
+      iso3: normalized.iso3,
       nikeRegion: nikeRegion || undefined,
       nikeTerritory: nikeTerritory || undefined,
       sourceRow: lineNo,
@@ -1907,6 +1913,263 @@ ipcMain.handle(
       }
 
       const page = await readStateDataFilePage(selected.path, parsedCriteria)
+      return {
+        ok: true,
+        sourceFile: selected.name,
+        rows: page.rows,
+        offset: page.offset,
+        limit: page.limit,
+        hasMore: page.hasMore,
+        fileSizeBytes: page.fileSizeBytes,
+        totalCount: page.totalCount,
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Read failed'
+      return { ok: false, error: message }
+    }
+  },
+)
+
+interface CityDataFileListCriteria {
+  offset?: number
+  limit?: number
+  /** Case-insensitive substring match on city, state, or country. */
+  search?: string
+  /** Exact match on COUNTRY column. */
+  country?: string
+  /** Exact match on STATE column. */
+  state?: string
+}
+
+interface DataFileCityRow {
+  sourceRow: number
+  name: string
+  state: string
+  country: string
+  /** Number of location CSV rows for this city + state + country triple. */
+  occurrenceCount: number
+}
+
+interface CityAccumulator {
+  name: string
+  state: string
+  country: string
+  sourceRow: number
+  occurrenceCount: number
+}
+
+function cityDedupeKey(
+  name: string | undefined,
+  state: string | undefined,
+  country: string | undefined,
+): string | undefined {
+  const cityName = name?.trim()
+  const stateName = state?.trim()
+  const countryName = country?.trim()
+  if (!cityName || !stateName || !countryName) return undefined
+  return `city:${cityName.toLowerCase()}|state:${stateName.toLowerCase()}|country:${countryName.toLowerCase()}`
+}
+
+function rowMatchesCitySearch(row: DataFileCityRow, searchLower: string): boolean {
+  return (
+    includesIgnoreCase(row.name, searchLower) ||
+    includesIgnoreCase(row.state, searchLower) ||
+    includesIgnoreCase(row.country, searchLower)
+  )
+}
+
+async function collectCitiesFromLocationFile(
+  filePath: string,
+  criteria: CityDataFileListCriteria = {},
+): Promise<{ rows: DataFileCityRow[]; fileSizeBytes: number }> {
+  const stat = await fs.stat(filePath)
+  const stream = createReadStream(filePath, { encoding: 'utf8' })
+  const lines = createInterface({ input: stream, crlfDelay: Infinity })
+
+  let headers: string[] | null = null
+  let lineNo = 0
+  const byKey = new Map<string, CityAccumulator>()
+  const searchLower = criteria.search?.trim().toLowerCase()
+  const countryFilterLower = criteria.country?.trim().toLowerCase()
+  const stateFilterLower = criteria.state?.trim().toLowerCase()
+
+  for await (const rawLine of lines) {
+    const line = rawLine.trim()
+    if (!line) continue
+    lineNo += 1
+
+    if (headers == null) {
+      headers = parseCsvLine(line).map((header) => header.trim())
+      if (headers.indexOf('LOCATION_ID') < 0) {
+        throw new Error('Not a location/building data file (missing LOCATION_ID column).')
+      }
+      if (headers.indexOf('CITY') < 0) {
+        throw new Error(
+          'Not a location/building data file (missing CITY column). Choose a location_current_*.csv file.',
+        )
+      }
+      if (headers.indexOf('STATE') < 0) {
+        throw new Error(
+          'Not a location/building data file (missing STATE column). Choose a location_current_*.csv file.',
+        )
+      }
+      if (headers.indexOf('COUNTRY') < 0) {
+        throw new Error(
+          'Not a location/building data file (missing COUNTRY column). Choose a location_current_*.csv file.',
+        )
+      }
+      continue
+    }
+
+    const parsed = parseCsvLine(line)
+    const record: Record<string, string> = {}
+    headers.forEach((header, index) => {
+      record[header] = parsed[index] ?? ''
+    })
+
+    const name = cell(record, 'CITY')?.trim()
+    const state = cell(record, 'STATE')?.trim()
+    const country = cell(record, 'COUNTRY')?.trim()
+    if (!name || !state || !country) continue
+
+    const key = cityDedupeKey(name, state, country)
+    if (!key) continue
+
+    const existing = byKey.get(key)
+    if (existing) {
+      existing.occurrenceCount += 1
+      continue
+    }
+
+    byKey.set(key, {
+      name,
+      state,
+      country,
+      sourceRow: lineNo,
+      occurrenceCount: 1,
+    })
+  }
+
+  let rows = [...byKey.values()].map((entry) => ({
+    sourceRow: entry.sourceRow,
+    name: entry.name,
+    state: entry.state,
+    country: entry.country,
+    occurrenceCount: entry.occurrenceCount,
+  }))
+
+  if (countryFilterLower) {
+    rows = rows.filter((row) =>
+      includesIgnoreCase(row.country, countryFilterLower),
+    )
+  }
+
+  if (stateFilterLower) {
+    rows = rows.filter((row) =>
+      includesIgnoreCase(row.state, stateFilterLower),
+    )
+  }
+
+  if (searchLower) {
+    rows = rows.filter((row) => rowMatchesCitySearch(row, searchLower))
+  }
+
+  rows.sort((a, b) => {
+    const countryCmp = a.country.localeCompare(b.country, undefined, {
+      sensitivity: 'base',
+    })
+    if (countryCmp !== 0) return countryCmp
+    const stateCmp = a.state.localeCompare(b.state, undefined, {
+      sensitivity: 'base',
+    })
+    if (stateCmp !== 0) return stateCmp
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  })
+
+  return { rows, fileSizeBytes: stat.size }
+}
+
+interface CityDataFilePageResult {
+  rows: DataFileCityRow[]
+  offset: number
+  limit: number
+  hasMore: boolean
+  fileSizeBytes: number
+  totalCount: number
+}
+
+async function readCityDataFilePage(
+  filePath: string,
+  criteria: CityDataFileListCriteria = {},
+): Promise<CityDataFilePageResult> {
+  const offset = Math.max(0, Math.floor(criteria.offset ?? 0))
+  const limit = Math.min(
+    MAX_SPACE_DATA_FILE_PAGE_SIZE,
+    Math.max(1, Math.floor(criteria.limit ?? DEFAULT_SPACE_DATA_FILE_PAGE_SIZE)),
+  )
+
+  const { rows: allRows, fileSizeBytes } = await collectCitiesFromLocationFile(
+    filePath,
+    criteria,
+  )
+
+  const totalCount = allRows.length
+  const rows = allRows.slice(offset, offset + limit)
+  const hasMore = offset + limit < totalCount
+
+  return { rows, offset, limit, hasMore, fileSizeBytes, totalCount }
+}
+
+ipcMain.handle(
+  'files:listDataFileCities',
+  async (
+    _event,
+    criteria: unknown,
+    fileName?: unknown,
+  ): Promise<
+    | {
+        ok: true
+        sourceFile: string
+        rows: DataFileCityRow[]
+        offset: number
+        limit: number
+        hasMore: boolean
+        fileSizeBytes: number
+        totalCount: number
+      }
+    | { ok: false; error: string }
+  > => {
+    if (!criteria || typeof criteria !== 'object') {
+      return { ok: false, error: 'Invalid match criteria.' }
+    }
+    if (fileName !== undefined && typeof fileName !== 'string') {
+      return { ok: false, error: 'Invalid file name.' }
+    }
+    if (
+      typeof fileName === 'string' &&
+      !VALID_DATA_FILE_NAME_RE.test(fileName)
+    ) {
+      return { ok: false, error: 'Invalid file name.' }
+    }
+
+    const parsedCriteria = criteria as CityDataFileListCriteria
+    try {
+      const files = await listDataFileEntries('location')
+      const selected =
+        typeof fileName === 'string'
+          ? files.find((file) => file.name === fileName)
+          : files[0]
+
+      if (!selected) {
+        return { ok: false, error: 'No uploaded buildings data file found.' }
+      }
+
+      const dir = dataFileDir('location')
+      if (!isInsideDir(selected.path, dir)) {
+        return { ok: false, error: 'Refused to read outside module data directory.' }
+      }
+
+      const page = await readCityDataFilePage(selected.path, parsedCriteria)
       return {
         ok: true,
         sourceFile: selected.name,

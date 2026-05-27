@@ -311,6 +311,35 @@ export type ListDataFileStatesResult =
     }
   | { ok: false; error: string }
 
+export interface CityDataFileListCriteria {
+  offset?: number
+  limit?: number
+  search?: string
+  country?: string
+  state?: string
+}
+
+export interface DataFileCityRow {
+  sourceRow: number
+  name: string
+  state: string
+  country: string
+  occurrenceCount: number
+}
+
+export type ListDataFileCitiesResult =
+  | {
+      ok: true
+      sourceFile: string
+      rows: DataFileCityRow[]
+      offset: number
+      limit: number
+      hasMore: boolean
+      fileSizeBytes: number
+      totalCount: number
+    }
+  | { ok: false; error: string }
+
 contextBridge.exposeInMainWorld('electronFiles', {
   importDataFile: (moduleId: string) =>
     ipcRenderer.invoke('files:importDataFile', moduleId) as Promise<ImportDataFileResult>,
@@ -385,6 +414,15 @@ contextBridge.exposeInMainWorld('electronFiles', {
       criteria,
       fileName,
     ) as Promise<ListDataFileStatesResult>,
+  listDataFileCities: (
+    criteria: CityDataFileListCriteria,
+    fileName?: string,
+  ) =>
+    ipcRenderer.invoke(
+      'files:listDataFileCities',
+      criteria,
+      fileName,
+    ) as Promise<ListDataFileCitiesResult>,
 })
 
 contextBridge.exposeInMainWorld('electronApp', {
