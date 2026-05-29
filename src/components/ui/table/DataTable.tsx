@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import type { Theme } from '@mui/material/styles'
+import type { SystemStyleObject } from '@mui/system'
 import IconButton from '@mui/material/IconButton'
 import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
@@ -24,6 +26,8 @@ export interface DataTableProps<T> {
   emptyTitle?: string
   emptyDescription?: string
   rowActions?: DataTableRowActions<T>
+  /** Optional per-row background / hover overrides (e.g. sync result highlights). */
+  getRowSx?: (row: T) => SystemStyleObject<Theme> | undefined
   /** Sticky header row (off by default — matches Developer → Tables). */
   stickyHeader?: boolean
 }
@@ -40,6 +44,7 @@ export function DataTable<T>({
   emptyTitle = 'No records yet',
   emptyDescription,
   rowActions,
+  getRowSx,
   stickyHeader = false,
 }: DataTableProps<T>) {
   const colSpan = columns.length + (rowActions ? 1 : 0)
@@ -87,11 +92,20 @@ export function DataTable<T>({
               </TableCell>
             </TableRow>
           ) : (
-            rows.map((row) => (
+            rows.map((row) => {
+              const highlightSx = getRowSx?.(row)
+              const rowSx: SystemStyleObject<Theme> | undefined =
+                onRowClick || highlightSx
+                  ? {
+                      ...(onRowClick ? { cursor: 'pointer' } : {}),
+                      ...highlightSx,
+                    }
+                  : undefined
+              return (
               <TableRow
                 key={getRowId(row)}
                 hover
-                sx={onRowClick ? { cursor: 'pointer' } : undefined}
+                sx={rowSx}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
                 {columns.map((col) => (
@@ -109,7 +123,7 @@ export function DataTable<T>({
                   </TableCell>
                 ) : null}
               </TableRow>
-            ))
+            )})
           )}
         </TableBody>
       </Table>
