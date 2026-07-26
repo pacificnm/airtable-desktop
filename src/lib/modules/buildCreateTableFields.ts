@@ -44,9 +44,9 @@ export function sortBlueprintsForProvisioning<
   const sorted: T[] = []
   const keys = new Set(remaining.map((b) => (b as { tableKey?: string }).tableKey))
 
-  let guard = 0
-  while (remaining.length > 0 && guard < remaining.length * 3) {
-    guard++
+  // Each iteration either removes exactly one entry from `remaining` or breaks,
+  // so this always terminates in at most `blueprints.length` passes — no guard needed.
+  while (remaining.length > 0) {
     const nextIndex = remaining.findIndex((bp) =>
       bp.fields.every((f) => {
         if (!f.linkToTableKey) return true

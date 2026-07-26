@@ -101,7 +101,13 @@ export function UsersAuthSettings() {
 
   return (
     <SettingsPanel title="Authentication mode">
-      <FormStack>
+      <FormStack
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (saving || !crud.canMutate) return
+          void handleSave()
+        }}
+      >
         <FormSelect
           labelId="users-auth-provider-label"
           label="Auth provider"

@@ -27,7 +27,13 @@ export function CustomSignInForm({
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2, mt: -0.5 }}>
         App Users table authentication
       </Typography>
-      <FormStack>
+      <FormStack
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (loading) return
+          void onSignIn(login, password)
+        }}
+      >
         {error ? <Alert severity="error">{error}</Alert> : null}
         <FormTextField
           label="Email or username"

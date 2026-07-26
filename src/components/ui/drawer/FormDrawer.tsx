@@ -72,7 +72,17 @@ export function FormDrawer({
           </IconButton>
         </Box>
         <Divider />
-        <Box sx={{ flex: 1, overflow: 'auto', px: 2, py: 2 }}>
+        <Box
+          sx={{ flex: 1, overflow: 'auto', px: 2, py: 2 }}
+          onSubmit={(event) => {
+            // FormStack/FormGrid render the actual <form>; its submit event (e.g. Enter key
+            // in a text field) bubbles up to here. The Save button itself lives outside the
+            // <form>, in the action bar below, so this is what makes Enter equivalent to Save.
+            event.preventDefault()
+            if (saving || saveDisabled) return
+            onSave()
+          }}
+        >
           {connectionWarning ? (
             <Alert severity="warning" sx={{ mb: 2 }}>
               {connectionWarning}

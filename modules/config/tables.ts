@@ -1,6 +1,10 @@
-import type { AirtableTableConfig } from '../../src/config/tableTypes.ts'
+import type { AirtableTableConfig } from '@/config/tableTypes.ts'
 
-/** Replace `tblREPLACE_APP_CONFIG` with your base’s table id after setup. */
+/**
+ * Field map synced from Airtable (read-only meta API). Does not create or modify base schema.
+ * Regenerate via Developer → Modules → Sync schema from Airtable.
+ * For select colors and full field options, see `tables.meta.ts` in this folder.
+ */
 export const configModuleTables = [
   {
     key: 'appConfig',
@@ -9,25 +13,24 @@ export const configModuleTables = [
     tableName: 'App Config',
     primaryField: 'key',
     fields: {
+      active: 'Active',
+      description: 'Description',
       key: 'Key',
+      label: 'Label',
+      module: 'Module',
       value: 'Value',
       valueType: 'Value type',
-      label: 'Label',
-      description: 'Description',
-      module: 'Module',
-      active: 'Active',
     },
     columns: [
-      { field: 'key', label: 'Key' },
-      { field: 'value', label: 'Value' },
-      { field: 'valueType', label: 'Type' },
-      { field: 'module', label: 'Module' },
       { field: 'active', label: 'Active' },
+      { field: 'description', label: 'Description' },
+      { field: 'key', label: 'Key' },
+      { field: 'label', label: 'Label' },
+      { field: 'module', label: 'Module' },
+      { field: 'value', label: 'Value' },
+      { field: 'valueType', label: 'Value type' },
     ],
-    list: {
-      pageSize: 100,
-      sort: [{ field: 'Key', direction: 'asc' }],
-    },
+    list: { pageSize: 100, sort: [{ field: 'Key', direction: 'asc' }] },
     screens: ['configList'],
     validation: {
       key: { required: true },

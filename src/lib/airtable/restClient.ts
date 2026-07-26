@@ -148,10 +148,11 @@ export class AirtableRestClient implements AirtableClient {
       })
 
       records.push(...page.records)
+      pageIndex++
       const hasMore = Boolean(page.offset)
       onPage?.({
         records: page.records as AirtableRecord[],
-        pageIndex,
+        pageIndex: pageIndex - 1,
         hasMore,
       })
 
@@ -160,7 +161,6 @@ export class AirtableRestClient implements AirtableClient {
       }
 
       nextOffset = page.offset
-      pageIndex++
 
       if (maxTotal != null && records.length >= maxTotal) {
         truncated = true
@@ -178,7 +178,7 @@ export class AirtableRestClient implements AirtableClient {
     return {
       records: finalRecords,
       truncated,
-      pagesFetched: pageIndex + 1,
+      pagesFetched: pageIndex,
     }
   }
 

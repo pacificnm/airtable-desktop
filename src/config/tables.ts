@@ -25,20 +25,30 @@ export type {
  */
 export const coreAirtableTables = [] as const satisfies readonly AirtableTableConfig[]
 
+/**
+ * Snapshot taken at module-evaluation time, before App Config hydration or provisioning has run —
+ * only safe for shape checks (e.g. "are any module tables contributed at all"). Table `tableId`s
+ * here may still be placeholders; use `getConfiguredTables()`/`getTableConfig()` for live ids.
+ */
 export const airtableTables = [
   ...coreAirtableTables,
   ...getModuleTableContributions(),
 ] as const satisfies readonly AirtableTableConfig[]
 
+/**
+ * Re-resolves module table ids on every call (App Config cache, then localStorage provisioning),
+ * so ids that hydrate after this module first loads — e.g. on a new device with no localStorage
+ * data — take effect once available, instead of being frozen at the first, pre-hydration read.
+ */
 export function getConfiguredTables(): readonly AirtableTableEntry[] {
-  return airtableTables as readonly AirtableTableEntry[]
+  return [
+    ...coreAirtableTables,
+    ...getModuleTableContributions(),
+  ] as readonly AirtableTableEntry[]
 }
 
-export const tableConfigByKey: Record<string, AirtableTableEntry> =
-  Object.fromEntries(getConfiguredTables().map((t) => [t.key, t]))
-
 export function getTableConfig(key: TableKey): AirtableTableEntry | undefined {
-  return tableConfigByKey[key]
+  return getConfiguredTables().find((t) => t.key === key)
 }
 
 export function tableScreens(

@@ -24,19 +24,25 @@ export async function syncOAuthUserProfile(
     { filterByFormula: formula, maxRecords: 1 },
   )
 
+  if (existing.records[0]) {
+    // `active` and `displayName` are admin-editable in AppUserForm — don't re-sync them here,
+    // or an admin's deactivation/rename gets silently overwritten on the user's next sign-in.
+    // Only keep the OAuth link fresh (id + email).
+    const id = existing.records[0].id
+    const fields = mapConfigToAirtableFields(tableConfig, {
+      email: email || undefined,
+      airtableUserId,
+    })
+    await client.updateRecords(tableConfig.tableId, [{ id, fields }])
+    return { recordId: id, created: false }
+  }
+
   const fields = mapConfigToAirtableFields(tableConfig, {
     email: email || undefined,
     displayName,
     airtableUserId,
     active: true,
   })
-
-  if (existing.records[0]) {
-    const id = existing.records[0].id
-    await client.updateRecords(tableConfig.tableId, [{ id, fields }])
-    return { recordId: id, created: false }
-  }
-
   const created = await client.createRecords(tableConfig.tableId, [{ fields }])
   return { recordId: created.records[0]!.id, created: true }
 }
